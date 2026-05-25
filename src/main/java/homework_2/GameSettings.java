@@ -15,10 +15,10 @@ public class GameSettings {
     }
 
     int addPlayer() {
-       return currentPlayers++;
+        return currentPlayers++;
     }
 
-    void printGameStatus(){
+    void printGameStatus() {
         System.out.println("Название: " + GAME_NAME + " Текущее количество игроков: " + this.currentPlayers + " Максимальное количество игроков " + maxPlayers);
     }
 }
