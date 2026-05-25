@@ -147,7 +147,8 @@ public class SwitchTestSolvers {
             case "/":
                 if (num2 == 0) {
                     System.out.println("Делить на ноль нельзя!");
-                } result = num1 / num2;
+                }
+                result = num1 / num2;
                 break;
             default:
                 System.out.println("Введите правильный оператор");

@@ -58,7 +58,7 @@ public class BreakAndContinueTestSolvers {
 
                 continue;
             }
-            if (console == 0){
+            if (console == 0) {
                 break;
             }
             System.out.println(console);

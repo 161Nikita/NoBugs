@@ -91,8 +91,7 @@ public class IfTestSolvers {
         console = scanner.nextInt();
         if (console < 18) {
             System.out.println("Ваша скидка 25% ");
-        }
-        else if (console >= 65) {
+        } else if (console >= 65) {
             System.out.println("Ваша скидка 30% ");
         } else {
             System.out.println("У вас нет скидки!");
@@ -114,11 +113,8 @@ public class IfTestSolvers {
         }
         if (console >= 60 && console <= 74) {
             System.out.println("Удовлетворительно");
-        }
-        else if (console < 60) {
+        } else if (console < 60) {
             System.out.println("Неудовлетворительно");
         }
     }
-
-
 }
