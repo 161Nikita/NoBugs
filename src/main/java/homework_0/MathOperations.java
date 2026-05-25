@@ -1,4 +1,4 @@
-package practice_1;
+package homework_0;
 
 public class MathOperations {
 
@@ -24,17 +24,20 @@ public class MathOperations {
     static int add(int x, int y) {
         return x + y;
     }
+
     // метод возвращает разницу двух числе
     static int subtract(int x, int y) {
         return x - y;
     }
+
     // метод возвращает произведение двух чисел (умножение)
     static int multiply(int x, int y) {
         return x * y;
     }
+
     // метод возвращает результат деления двух чисел (double)
     static double divide(int x, int y) {
-        return(double) x / y;
+        return (double) x / y;
     }
 
     static int findMax(int a, int b) {
@@ -47,7 +50,7 @@ public class MathOperations {
 
     // метод возвращает площадь квадрата
     static int squareArea(int side) {
-       return side * side;
+        return side * side;
     }
 
     // метод возвращает периметр квадрата
@@ -67,7 +70,7 @@ public class MathOperations {
 
     // метод для нахождения гипотенузы
     static double findHypotenuse(double a, double b) {
-        return Math.sqrt(a*a + b*b);
+        return Math.sqrt(a * a + b * b);
     }
 
     // метод для длины окружности
