@@ -1,8 +1,8 @@
-package practice_1;
+package homework_0;
 
 public class HelloWorld {
     // Поля
-    static  int a = 1;
+    static int a = 1;
 
     // Метод
 
