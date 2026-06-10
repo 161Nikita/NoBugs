@@ -1,4 +1,4 @@
-package practice_7.library;
+package practice_7_exception.library;
 
 import java.util.Objects;
 

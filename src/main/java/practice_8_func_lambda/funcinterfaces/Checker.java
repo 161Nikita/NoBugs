@@ -1,4 +1,4 @@
-package practice_8.funcinterfaces;
+package practice_8_func_lambda.funcinterfaces;
 
 @FunctionalInterface
 public interface Checker {

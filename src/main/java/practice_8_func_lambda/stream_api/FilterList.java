@@ -1,8 +1,7 @@
-package practice_8.stream_api;
+package practice_8_func_lambda.stream_api;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.IntStream;
 
 public class FilterList {
     public static void main(String[] args) {
