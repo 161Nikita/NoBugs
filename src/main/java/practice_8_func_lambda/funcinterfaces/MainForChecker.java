@@ -1,4 +1,4 @@
-package practice_8.funcinterfaces;
+package practice_8_func_lambda.funcinterfaces;
 
 
 public class MainForChecker {

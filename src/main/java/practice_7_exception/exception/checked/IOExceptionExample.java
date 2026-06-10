@@ -1,4 +1,4 @@
-package practice_7.exception.checked;
+package practice_7_exception.exception.checked;
 
 import java.io.BufferedReader;
 import java.io.FileReader;

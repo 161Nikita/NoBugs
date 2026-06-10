@@ -1,4 +1,4 @@
-package practice_7.error;
+package practice_7_exception.error;
 
 import java.util.ArrayList;
 import java.util.List;

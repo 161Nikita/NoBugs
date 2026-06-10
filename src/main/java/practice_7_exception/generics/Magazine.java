@@ -1,4 +1,4 @@
-package practice_7.generics;
+package practice_7_exception.generics;
 
 public class Magazine extends Book {
     public Magazine(String name) {

@@ -1,4 +1,4 @@
-package practice_8.lamda;
+package practice_8_func_lambda.lamda;
 
 public class Main {
     public static void main(String[] args) {

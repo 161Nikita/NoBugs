@@ -1,4 +1,4 @@
-package practice_7.generics;
+package practice_7_exception.generics;
 
 public class Main {
     public static void main(String[] args) {

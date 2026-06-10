@@ -1,6 +1,6 @@
-package practice_7.library;
+package practice_7_exception.library;
 
-import practice_7.library.exceptions.BookNotFoundException;
+import practice_7_exception.library.exceptions.BookNotFoundException;
 
 public class Main {
     public static void main(String[] args) {

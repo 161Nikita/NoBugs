@@ -1,4 +1,4 @@
-package practice_7.exception.unchecked;
+package practice_7_exception.exception.unchecked;
 
 public class NullPointerExceptionExample {
     public static void main(String[] args) {

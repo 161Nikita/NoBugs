@@ -1,4 +1,4 @@
-package practice_7.error;
+package practice_7_exception.error;
 
 public class StackOverFlowError {
     public static void recursivePrint(int num) {
