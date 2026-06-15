@@ -11,7 +11,7 @@ public class BreakAndContinueTestSolvers {
         // проверка метода на вывод только положительных чисел
         // positiveNumber();
         // проверка метода на ввод строк до команды "stop"
-        inputString();
+        //inputString();
 
 
     }
@@ -69,11 +69,11 @@ public class BreakAndContinueTestSolvers {
     public static void inputString() {
         Scanner scanner = new Scanner(System.in);
 
-        System.out.println("Введите текст, если хотите завершить программу введите слово \"stop\"");
+        System.out.println("Введите любой текст, если хотите завершить программу, то введите слово \"stop\"");
 
         while (true) {
             String console = scanner.nextLine();
-            if (console.equals("exit")) {
+            if (console.equals("stop")) {
                 System.out.println("Программа завершается");
                 break;
             }
