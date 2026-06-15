@@ -11,7 +11,7 @@ public class StudentGroup {
     }
 
     String getGroupName() {
-        return getGroupName();
+        return this.groupName;
     }
 
     int getStudentCount() {
