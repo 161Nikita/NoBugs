@@ -1,11 +1,11 @@
 package homework_1;
 
-public class Reactangle {
+public class Rectangle {
 
     int width;
     int height;
 
-    Reactangle(int someWidth, int someHeight) {
+    Rectangle(int someWidth, int someHeight) {
         this.height = someHeight;
         this.width = someWidth;
     }

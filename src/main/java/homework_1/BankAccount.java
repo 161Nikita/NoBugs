@@ -27,7 +27,11 @@ public class BankAccount {
     }
 
     void withdraw(int amount) {
-        this.balance = this.balance - amount ;
+        if (amount > this.balance) {
+            System.out.println("Нельзя снять больше, чем есть на балансе");
+        } else {
+            this.balance = this.balance - amount;
+        }
     }
 
     void printBalance() {
