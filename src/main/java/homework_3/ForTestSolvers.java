@@ -72,10 +72,10 @@ public class ForTestSolvers {
         return isPrime;
     }
 
- public static void outputNum() {
+    public static void outputNum() {
         for (int i = 1; i <= 10; i++) {
             System.out.println(i);
         }
- }
+    }
 
 }

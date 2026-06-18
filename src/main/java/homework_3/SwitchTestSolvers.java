@@ -14,7 +14,7 @@ public class SwitchTestSolvers {
         // проверка метода обработки текстовых команд
         //System.out.println(textCommand());
         // проверка метода простого калькулятора
-        System.out.println(calculator());
+        //calculator();
 
     }
 
@@ -118,7 +118,7 @@ public class SwitchTestSolvers {
         return statusProgram;
     }
 
-    public static int calculator() {
+    public static void calculator() {
         Scanner scanner = new Scanner(System.in);
 
         System.out.println("Введите первое число: ");
@@ -132,27 +132,26 @@ public class SwitchTestSolvers {
         System.out.println("Введите второе число: ");
         int num2 = scanner.nextInt();
 
-        int result = 0;
-
         switch (operator) {
             case "+":
-                result = num1 + num2;
+                System.out.println(num1 + num2);
                 break;
             case "-":
-                result = num1 - num2;
+                System.out.println(num1 - num2);
                 break;
             case "*":
-                result = num1 * num2;
+                System.out.println(num1 * num2);
                 break;
             case "/":
                 if (num2 == 0) {
                     System.out.println("Делить на ноль нельзя!");
-                } result = num1 / num2;
+                } else {
+                    System.out.println(num1 / num2);
+                }
                 break;
             default:
                 System.out.println("Введите правильный оператор");
                 break;
         }
-        return result;
     }
 }

@@ -12,8 +12,6 @@ public class WhileTestSolvers {
         //printEvenNumbers();
         // проверка метода на вывод обратного отсчета от введённого до 1
         //countdown();
-
-
     }
 
     public static int calculatingTheFactorial() {
