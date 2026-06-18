@@ -6,7 +6,7 @@ public class Company {
     final int EMPLOYEE_ID;
     String employeeName;
 
-    Company(int someEMPLOYEE_ID, String employeeName){
+    Company(int someEMPLOYEE_ID, String employeeName) {
         this.EMPLOYEE_ID = someEMPLOYEE_ID;
         this.employeeName = employeeName;
     }

@@ -6,7 +6,7 @@ public class University {
     final int STUDENT_ID;
     String studentName;
 
-    University( int someSTUDENT_ID, String someStudentName) {
+    University(int someSTUDENT_ID, String someStudentName) {
         this.STUDENT_ID = someSTUDENT_ID;
         this.studentName = someStudentName;
     }
