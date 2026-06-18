@@ -25,7 +25,7 @@ public class SecondMaxFinderTest {
     private final SecondMaxFinder secondMaxFinder = new SecondMaxFinder();
 
     public static Stream<Arguments> enterValidArrays() {
-        return Stream.of(Arguments.of(new int[]{3, 5, 7, 2}, 5));
+        return Stream.of(Arguments.of(new int[]{-2, -19, 3, 1, 7, 2}, 3));
     }
 
     @DisplayName("Проверка: Поиск второго максимального числа в массиве")

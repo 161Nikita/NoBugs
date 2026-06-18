@@ -12,6 +12,7 @@ public class EmailValidatorTest {
     /**
      * Позитивные кейсы:
      * Корректный адрес "test@example.com" -> true
+     * Корректный адрес "te.st@example.ru" -> true
      * Негативные кейсы:
      * Некорректные email ("bad@.com", "no-at-symbol")
      * Угловые кейсы:
@@ -23,7 +24,7 @@ public class EmailValidatorTest {
     @DisplayName("Проверка: корректный e-mail")
     @ParameterizedTest
     //Позитивные кейсы: Корректный адрес "test@example.com" -> true
-    @ValueSource(strings = {"test@example.com"})
+    @ValueSource(strings = {"test@example.com", "te.st@example.ru"})
     public void userEnterValidEmail(String email) {
 
         boolean actualResult = emailValidator.isValidEmail(email);

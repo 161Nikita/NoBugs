@@ -18,6 +18,8 @@ public class StringProcessorTest {
      * Угловые кейсы:
      * "" -> ""
      * "a" -> "a"
+     * "Привет, как дела?"
+     * "HeLlo"
      * Негативные кейсы:
      * null -> null
      */
@@ -30,7 +32,10 @@ public class StringProcessorTest {
                         (Arguments.of("java", "avaj"),
                                 // Угловые кейсы:
                                 (Arguments.of("", "")),
-                                (Arguments.of("a", "a")));
+                                (Arguments.of("a", "a")),
+                                (Arguments.of("Привет, как дела?", "?алед как ,тевирП")),
+                                (Arguments.of("HeLlo", "olLeH")));
+
     }
 
     @DisplayName("Разворот валидных строк")

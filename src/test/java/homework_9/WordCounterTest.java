@@ -29,9 +29,7 @@ public class WordCounterTest {
         return Stream.of(
                 //Позитивные проверки:
                 Arguments.of("Hello world", 2),
-                Arguments.of(" Java is awesome ", 3), // метод отрабатывает некорректно. Нужно было
-                // занести в переменную передаваемый аргумент, и в этой переменной удалить пробел в начале, после этого
-                // выполнить тернарный оператор
+                Arguments.of(" Java is awesome ", 3),
                 // Угловые проверки
                 Arguments.of("", 0),
                 Arguments.of(" ", 0));
@@ -48,7 +46,6 @@ public class WordCounterTest {
         assertEquals(expectedInt, actualResult, "Ожидаем корректное количество слов");
     }
 
-    // Выбрасывается NullPointerException т.к. строки не существует, но в подсказках написано, что должно быть IllegalArgumentException
     @DisplayName("Исключение при передачи значения null")
     @Test
     public void shouldExceptionWhenInputIsNull() {

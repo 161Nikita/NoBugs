@@ -52,7 +52,7 @@ public class PhoneValidatorTest {
 
     @DisplayName("Исключение при передаче значения null")
     @Test
-    public void should() {
+    public void shouldThrowExceptionWhenPhoneIsNull() {
         // NullPointerException такое исключение должно быть, в подсказках IllegalArgumentException, оставил как в них написано
         assertThrows(IllegalArgumentException.class, () -> {
             phoneValidator.isValidPhoneNumber(null);
