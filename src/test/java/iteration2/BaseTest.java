@@ -1,8 +1,15 @@
 package iteration2;
 
+import models.CreateUserRequest;
+import models.LoginUserRequest;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import requests.skelethon.Endpoint;
+import requests.skelethon.requesters.CrudRequester;
+import requests.skelethon.steps.AdminSteps;
+import specs.RequestSpecs;
+import specs.ResponseSpecs;
 
 public class BaseTest {
     protected SoftAssertions softly;
@@ -15,5 +22,26 @@ public class BaseTest {
     @AfterEach
     public void afterTest() {
         softly.assertAll();
+    }
+
+
+    protected CreateUserRequest createAndAuthorizeUser() {
+        CreateUserRequest userRequest = AdminSteps.createUser();
+
+        LoginUserRequest loginUserRequest = LoginUserRequest.builder()
+                .username(userRequest.getUsername())
+                .password(userRequest.getPassword())
+                .build();
+
+        // Получаем токен юзера
+        new CrudRequester(
+                RequestSpecs.unauthSpec(),
+                Endpoint.LOGIN,
+                ResponseSpecs.requestReturnsOK())
+                .post(loginUserRequest)
+                .extract()
+                .header("Authorization");
+
+        return userRequest;
     }
 }

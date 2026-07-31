@@ -3,93 +3,62 @@ package iteration2;
 import constants.ErrorMessages;
 import generators.RandomData;
 import models.*;
+import models.comparison.ModelAssertions;
 import org.junit.jupiter.api.Test;
-import requests.*;
+import requests.skelethon.Endpoint;
+import requests.skelethon.requesters.CrudRequester;
+import requests.skelethon.requesters.ValidatedCrudRequester;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
 
 
 public class TransferringMoney extends BaseTest {
-    private CreateUserRequest createAndAuthorizeUser() {
-
-        CreateUserRequest userRequest = CreateUserRequest.builder()
-                .username(RandomData.getUsername())
-                .password(RandomData.getPassword())
-                .role(UserRole.USER.toString())
-                .build();
-
-        LoginUserRequest loginUserRequest = LoginUserRequest.builder()
-                .username(userRequest.getUsername())
-                .password(userRequest.getPassword())
-                .build();
-
-        // создание пользователя
-        new AdminCreateUserRequester(
-                RequestSpecs.adminSpec(),
-                ResponseSpecs.entityWasCreated())
-                .post(userRequest);
-
-        // получаем токен юзера
-        new LoginUserRequester(
-                RequestSpecs.unauthSpec(),
-                ResponseSpecs.requestReturnsOK())
-                .post(loginUserRequest)
-                .extract()
-                .header("Authorization");
-
-        return userRequest;
-    }
 
     @Test
     public void SuccessfulTransferOfFundsBetweenYourOwnAccounts() {
         CreateUserRequest user = createAndAuthorizeUser();
 
-        // создаем счет № 1 - отправитель
-        long senderAccountId = new CreateAccountRequester(
+        CreateAccountResponse senderAccount = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                ResponseSpecs.entityWasCreated())
-                .postAndGetBody()
-                .getId();
+                Endpoint.ACCOUNTS,
+                ResponseSpecs.entityWasCreated()
+        ).post(null);
+        long senderAccountId = senderAccount.getId();
 
-        // пополнение своего счета № 1
         double initialAmount = RandomData.getAmount();
-        new UserTopUpAccountRequester(
+        new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .post(UserTopUpAccountRequest.builder()
-                        .accountId(senderAccountId)
-                        .amount(initialAmount)
-                        .build());
+                Endpoint.USER_TOP_UP_ACCOUNT,
+                ResponseSpecs.requestReturnsOK()
+        ).post(UserTopUpAccountRequest.builder()
+                .accountId(senderAccountId)
+                .amount(initialAmount)
+                .build());
 
-        // создаем счет № 2 - получатель
-        long receiverAccountId = new CreateAccountRequester(
+        CreateAccountResponse receiverAccount = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                ResponseSpecs.entityWasCreated())
-                .postAndGetBody()
-                .getId();
+                Endpoint.ACCOUNTS,
+                ResponseSpecs.entityWasCreated()
+        ).post(null);
+        long receiverAccountId = receiverAccount.getId();
 
-        // пополнение своего счета № 2
         double transferAmount = initialAmount / 2;
-        UserTransferAccountResponse response = new UserTransferAccountRequester(
+
+        UserTransferAccountRequest request = UserTransferAccountRequest.builder()
+                .senderAccountId(senderAccountId)
+                .receiverAccountId(receiverAccountId)
+                .amount(transferAmount)
+                .build();
+
+        UserTransferAccountResponse response = new ValidatedCrudRequester<UserTransferAccountResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .postAndGetBody(UserTransferAccountRequest.builder()
-                        .senderAccountId(senderAccountId)
-                        .receiverAccountId(receiverAccountId)
-                        .amount(transferAmount)
-                        .build());
+                Endpoint.USER_TRANSFER_ACCOUNT,
+                ResponseSpecs.requestReturnsOK()
+        ).post(request);
 
-        softly.assertThat(response.getSenderAccountId())
-                .as("Неверный ID отправителя в ответе")
-                .isEqualTo(senderAccountId);
+        // модель сравнения
+        ModelAssertions.assertThatModels(request, response).match();
 
-        softly.assertThat(response.getReceiverAccountId())
-                .as("Неверный ID получателя в ответе")
-                .isEqualTo(receiverAccountId);
-
-        softly.assertThat(response.getAmount())
-                .as("Сумма перевода в ответе не совпадает с отправленной")
-                .isEqualTo(transferAmount);
     }
 
     @Test
@@ -97,41 +66,45 @@ public class TransferringMoney extends BaseTest {
         CreateUserRequest user = createAndAuthorizeUser();
         CreateUserRequest user2 = createAndAuthorizeUser();
 
-        // создаем счет № 1 - отправитель
-        long senderAccountId = new CreateAccountRequester(
+        // 1. Создаем счет № 1 - отправитель
+        CreateAccountResponse senderAccount = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                ResponseSpecs.entityWasCreated())
-                .postAndGetBody()
-                .getId();
-        // Получаем сумму перевода (> 10000) и делим её на 3 равные части
+                Endpoint.ACCOUNTS,
+                ResponseSpecs.entityWasCreated()
+        ).post(null);
+        long senderAccountId = senderAccount.getId();
+
+        // Расчет суммы перевода (> 10000) и деление её на 3 равные части
         double transferAmountOverLimit = RandomData.getTransferOverLimit();
         double chunk = transferAmountOverLimit / 3.0;
 
-        // пополнение своего счета № 1
-        UserTopUpAccountRequester topUp = new UserTopUpAccountRequester(
+        // 2. Пополнение своего счета № 1 (копим баланс за 3 захода)
+        CrudRequester topUp = new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                Endpoint.USER_TOP_UP_ACCOUNT,
                 ResponseSpecs.requestReturnsOK());
-        // пополняем баланс 3 раза
         for (int i = 0; i < 3; i++) {
             topUp.post(UserTopUpAccountRequest.builder().accountId(senderAccountId).amount(chunk).build());
         }
 
-        // создаем счет № 2 - получатель
-        long receiverAccountId = new CreateAccountRequester(
+        // 3. Создаем счет № 2 - получатель
+        CreateAccountResponse receiverAccount = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword()),
-                ResponseSpecs.entityWasCreated())
-                .postAndGetBody()
-                .getId();
+                Endpoint.ACCOUNTS,
+                ResponseSpecs.entityWasCreated()
+        ).post(null);
+        long receiverAccountId = receiverAccount.getId();
 
-        // пополнение чужого счета
-        new UserTransferAccountRequester(
+        // 4. Попытка перевода чужого счета
+        new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.TRANSFER_EXCEEDS_LIMIT))
-                .post(UserTransferAccountRequest.builder()
-                        .senderAccountId(senderAccountId)
-                        .receiverAccountId(receiverAccountId)
-                        .amount(transferAmountOverLimit)
-                        .build());
+                Endpoint.USER_TRANSFER_ACCOUNT,
+                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.TRANSFER_EXCEEDS_LIMIT)
+        ).post(UserTransferAccountRequest.builder()
+                .senderAccountId(senderAccountId)
+                .receiverAccountId(receiverAccountId)
+                .amount(transferAmountOverLimit)
+                .build());
     }
 
     @Test
@@ -139,39 +112,45 @@ public class TransferringMoney extends BaseTest {
         CreateUserRequest user = createAndAuthorizeUser();
         CreateUserRequest user2 = createAndAuthorizeUser();
 
-        // Создаем счет № 1 - отправитель
-        long senderAccountId = new CreateAccountRequester(
+        // 1. Создаем счет № 1 - отправитель
+        CreateAccountResponse senderAccount = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                ResponseSpecs.entityWasCreated())
-                .postAndGetBody()
-                .getId();
+                Endpoint.ACCOUNTS,
+                ResponseSpecs.entityWasCreated()
+        ).post(null);
+        long senderAccountId = senderAccount.getId();
 
-        // Пополняем счет № 1 на случайную валидную сумму (в пределах лимита 5000)
+        // 2. Пополняем счет № 1 на случайную валидную сумму (в пределах лимита 5000)
         double initialAmount = RandomData.getAmount();
-        new UserTopUpAccountRequester(
+        new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                ResponseSpecs.requestReturnsOK())
-                .post(UserTopUpAccountRequest.builder()
-                        .accountId(senderAccountId)
-                        .amount(initialAmount)
-                        .build());
+                Endpoint.USER_TOP_UP_ACCOUNT,
+                ResponseSpecs.requestReturnsOK()
+        ).post(UserTopUpAccountRequest.builder()
+                .accountId(senderAccountId)
+                .amount(initialAmount)
+                .build());
 
-        // Создаем счет № 2 - получатель
-        long receiverAccountId = new CreateAccountRequester(
+        // 3. Создаем счет № 2 - получатель
+        CreateAccountResponse receiverAccount = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword()),
-                ResponseSpecs.entityWasCreated())
-                .postAndGetBody()
-                .getId();
+                Endpoint.ACCOUNTS,
+                ResponseSpecs.entityWasCreated()
+        ).post(null);
+        long receiverAccountId = receiverAccount.getId();
 
+        // Расчет невалидной суммы перевода
         double invalidTransferAmount = initialAmount + RandomData.getAmount();
 
-        new UserTransferAccountRequester(
+        // Пытаемся выполнить перевод при нехватке средств
+        new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.INSUFFICIENT_FUNDS))
-                .post(UserTransferAccountRequest.builder()
-                        .senderAccountId(senderAccountId)
-                        .receiverAccountId(receiverAccountId)
-                        .amount(invalidTransferAmount)
-                        .build());
+                Endpoint.USER_TRANSFER_ACCOUNT,
+                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.INSUFFICIENT_FUNDS)
+        ).post(UserTransferAccountRequest.builder()
+                .senderAccountId(senderAccountId)
+                .receiverAccountId(receiverAccountId)
+                .amount(invalidTransferAmount)
+                .build());
     }
 }
