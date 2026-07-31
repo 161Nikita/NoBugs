@@ -1,227 +1,117 @@
 package iteration2;
 
-import io.restassured.RestAssured;
-import io.restassured.filter.log.RequestLoggingFilter;
-import io.restassured.filter.log.ResponseLoggingFilter;
+import constants.ErrorMessages;
+import generators.RandomData;
 import io.restassured.http.ContentType;
+import models.CreateUserRequest;
+import models.LoginUserRequest;
+import models.UserRole;
+import models.UserTopUpAccountRequest;
 import org.apache.http.HttpStatus;
 import org.hamcrest.Matchers;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import requests.AdminCreateUserRequester;
+import requests.CreateAccountRequester;
+import requests.LoginUserRequester;
+import requests.UserTopUpAccountRequester;
+import specs.RequestSpecs;
+import specs.ResponseSpecs;
 
-import java.util.List;
 import java.util.Random;
 
 import static io.restassured.RestAssured.given;
 
 
 public class UserDeposit {
-    @BeforeAll
-    public static void setupRestAssured() {
-        RestAssured.filters(
-                List.of(new RequestLoggingFilter(),
-                        new ResponseLoggingFilter()));
+
+    private CreateUserRequest createAndAuthorizeUser() {
+
+        CreateUserRequest userRequest = CreateUserRequest.builder()
+                .username(RandomData.getUsername())
+                .password(RandomData.getPassword())
+                .role(UserRole.USER.toString())
+                .build();
+
+        LoginUserRequest loginUserRequest = LoginUserRequest.builder()
+                .username(userRequest.getUsername())
+                .password(userRequest.getPassword())
+                .build();
+
+        // создание пользователя
+        new AdminCreateUserRequester(
+                RequestSpecs.adminSpec(),
+                ResponseSpecs.entityWasCreated())
+                .post(userRequest);
+
+        // получаем токен юзера
+        new LoginUserRequester(
+                RequestSpecs.unauthSpec(),
+                ResponseSpecs.requestReturnsOK())
+                .post(loginUserRequest)
+                .extract()
+                .header("Authorization");
+
+        return userRequest;
     }
 
     @Test
     public void depositTopUpTest() {
-        Random random = new Random();
-        int randomNumber = random.nextInt(500);
-        String userName = "Nikita" + randomNumber;
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Nikita133$",
-                          "role": "USER"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
+        CreateUserRequest user = createAndAuthorizeUser();
 
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        
-                            {
-                          "username": "%s",
-                          "password": "Nikita133$"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .extract()
-                .header("Authorization");
+        // создаем счет
+        long accountId = new CreateAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.entityWasCreated())
+                .postAndGetBody()
+                .getId();
 
-        // создаем аккаунт (счет)
-        int accountId = given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .post("http://localhost:4111/api/v1/accounts")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED)
-                .extract()
-                .path("id");
-
-        // пополнение своего активного счета
-
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "accountId": %d,
-                          "amount": 2000.00
-                        }
-                        """.formatted(accountId))
-                .post("http://localhost:4111/api/v1/accounts/deposit")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK);
+        // пополнение своего счета
+        new UserTopUpAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .post(UserTopUpAccountRequest.builder()
+                        .accountId(accountId)
+                        .amount(RandomData.getAmount())
+                        .build());
     }
 
     @Test
     public void AttemptToTopUpByAnAmountExceedingTheLimitTest() {
-        Random random = new Random();
-        int randomNumber = random.nextInt(500);
-        String userName = "Nikita" + randomNumber;
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Nikita133$",
-                          "role": "USER"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
+        CreateUserRequest user = createAndAuthorizeUser();
 
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        
-                            {
-                          "username": "%s",
-                          "password": "Nikita133$"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .extract()
-                .header("Authorization");
+        // создаем счет
+        long accountId = new CreateAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.entityWasCreated())
+                .postAndGetBody()
+                .getId();
 
-        // создаем аккаунт (счет)
-        int accountId = given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .post("http://localhost:4111/api/v1/accounts")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED)
-                .extract()
-                .path("id");
-
-        // пополнение своего активного счета
-
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "accountId": %d,
-                          "amount": 5000.01
-                        }
-                        """.formatted(accountId))
-                .post("http://localhost:4111/api/v1/accounts/deposit")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_BAD_REQUEST)
-                .body("message", Matchers.containsString("Deposit amount exceeds the 5000 limit"));
+        // пополнение своего счета превышающий лимит
+        new UserTopUpAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.DEPOSIT_EXCEEDS_LIMIT)
+        )
+                .post(UserTopUpAccountRequest.builder()
+                        .accountId(accountId)
+                        .amount(RandomData.getAmountOverLimit())
+                        .build());
     }
 
     @Test
     public void AttemptToTopUpSomeoneElseIsOrANonExistentAccountTest() {
-        Random random = new Random();
-        int randomNumber = random.nextInt(500);
-        String userName = "Nikita" + randomNumber;
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Nikita133$",
-                          "role": "USER"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
+        CreateUserRequest user = createAndAuthorizeUser();
 
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        
-                            {
-                          "username": "%s",
-                          "password": "Nikita133$"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .extract()
-                .header("Authorization");
-
-        // пополнение своего активного счета
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "accountId": 222,
-                          "amount": 5000.00
-                        }
-                        """)
-                .post("http://localhost:4111/api/v1/accounts/deposit")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_FORBIDDEN)
-                .body("message", Matchers.containsString("Unauthorized access to account"));
+        // пополнение несуществующего счета
+        new UserTopUpAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsForbidden(ErrorMessages.UNAUTHORIZED_ACCOUNT_ACCESS)
+        )
+                .post(UserTopUpAccountRequest.builder()
+                        .accountId(RandomData.getNonExistentAccountId())
+                        .amount(RandomData.getAmount())
+                        .build());
     }
 }

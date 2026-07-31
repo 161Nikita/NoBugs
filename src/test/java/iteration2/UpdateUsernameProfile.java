@@ -1,196 +1,84 @@
 package iteration2;
 
-import io.restassured.RestAssured;
-import io.restassured.filter.log.RequestLoggingFilter;
-import io.restassured.filter.log.ResponseLoggingFilter;
-import io.restassured.http.ContentType;
-import org.apache.http.HttpStatus;
-import org.junit.jupiter.api.BeforeAll;
+import constants.ErrorMessages;
+import generators.RandomData;
+import models.CreateUserRequest;
+import models.LoginUserRequest;
+import models.UpdateProfileRequest;
+import models.UserRole;
 import org.junit.jupiter.api.Test;
+import requests.AdminCreateUserRequester;
+import requests.LoginUserRequester;
+import requests.UpdateProfileRequester;
+import specs.RequestSpecs;
+import specs.ResponseSpecs;
 
-import java.util.List;
-import java.util.Random;
+public class UpdateUsernameProfile extends BaseTest {
 
-import static io.restassured.RestAssured.given;
+    private CreateUserRequest createAndAuthorizeUser() {
+        CreateUserRequest userRequest = CreateUserRequest.builder()
+                .username(RandomData.getUsername())
+                .password(RandomData.getPassword())
+                .role(UserRole.USER.toString())
+                .build();
 
-public class UpdateUsernameProfile {
-    @BeforeAll
-    public static void setupRestAssured() {
-        RestAssured.filters(
-                List.of(new RequestLoggingFilter(),
-                        new ResponseLoggingFilter()));
+        LoginUserRequest loginUserRequest = LoginUserRequest.builder()
+                .username(userRequest.getUsername())
+                .password(userRequest.getPassword())
+                .build();
+
+        new AdminCreateUserRequester(
+                RequestSpecs.adminSpec(),
+                ResponseSpecs.entityWasCreated())
+                .post(userRequest);
+
+        new LoginUserRequester(
+                RequestSpecs.unauthSpec(),
+                ResponseSpecs.requestReturnsOK())
+                .post(loginUserRequest)
+                .extract()
+                .header("Authorization");
+
+        return userRequest;
     }
 
     @Test
     public void SuccessfulNameChangeToAValidFormat() {
-        Random random = new Random();
-        int randomNumber = random.nextInt(500);
-        String userName = "Nikita" + randomNumber;
+        CreateUserRequest user = createAndAuthorizeUser();
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Nikita133$",
-                          "role": "USER"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
-
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        
-                            {
-                          "username": "%s",
-                          "password": "Nikita133$"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .extract()
-                .header("Authorization");
-
-        // изменение имени пользователя
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "Nikita Krapivin"
-                        }
-                        """)
-                // тут уязвимость, пароль можно поменять в методе если поставить в тело еще и "password": "Nikita133$1"
-                .put("http://localhost:4111/api/v1/customer/profile")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK);
+        // Обновляем имя пользователя на валидное (Имя Фамилия)
+        new UpdateProfileRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK()
+        ).put(UpdateProfileRequest.builder()
+                .name("Nikita Krapivin")
+                .build());
     }
 
     @Test
-    public void PasswordChangeAttempt() { // падает потому что можно поменять пароль в теле метода
-        Random random = new Random();
-        int randomNumber = random.nextInt(500);
-        String userName = "Nikita" + randomNumber;
+    public void PasswordChangeAttempt() {
+        CreateUserRequest user = createAndAuthorizeUser();
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Nikita133$",
-                          "role": "USER"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
-
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        
-                            {
-                          "username": "%s",
-                          "password": "Nikita133$"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .extract()
-                .header("Authorization");
-
-        // изменение имени пользователя
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "Nikita Krapivin",
-                          "password": "Nikita133$1"
-                        }
-                        """)
-                .put("http://localhost:4111/api/v1/customer/profile")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_BAD_REQUEST);
+        // !БАГ! Эндпойнт предназначен для смены имени, но может поменять пароль.
+        new UpdateProfileRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.PASSWORD_CHANGE_NOT_ALLOWED)
+        ).put(UpdateProfileRequest.builder()
+                .name("Nikita Krapivin")
+                .password(user.getPassword() + "1") // Передаем измененный пароль
+                .build());
     }
 
     @Test
     public void AttemptToSetANameConsistingOfOnlyOneWord() {
-        Random random = new Random();
-        int randomNumber = random.nextInt(500);
-        String userName = "Nikita" + randomNumber;
+        CreateUserRequest user = createAndAuthorizeUser();
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Nikita133$",
-                          "role": "USER"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
-
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        
-                            {
-                          "username": "%s",
-                          "password": "Nikita133$"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .extract()
-                .header("Authorization");
-
-        // изменение имени пользователя
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "name": "Krapivin"
-                        }
-                        """)
-                .put("http://localhost:4111/api/v1/customer/profile")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_BAD_REQUEST);
+        // Негативный тест: имя только из одного слова
+        new UpdateProfileRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.INVALID_NAME_FORMAT)
+        ).put(UpdateProfileRequest.builder()
+                .name("Krapivin")
+                .build());
     }
 }

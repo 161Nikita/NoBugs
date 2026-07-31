@@ -1,352 +1,177 @@
 package iteration2;
 
-import io.restassured.RestAssured;
-import io.restassured.filter.log.RequestLoggingFilter;
-import io.restassured.filter.log.ResponseLoggingFilter;
-import io.restassured.http.ContentType;
-import org.apache.http.HttpStatus;
-import org.hamcrest.Matchers;
-import org.junit.jupiter.api.BeforeAll;
+import constants.ErrorMessages;
+import generators.RandomData;
+import models.*;
 import org.junit.jupiter.api.Test;
+import requests.*;
+import specs.RequestSpecs;
+import specs.ResponseSpecs;
 
-import java.util.List;
-import java.util.Random;
 
-import static io.restassured.RestAssured.given;
+public class TransferringMoney extends BaseTest {
+    private CreateUserRequest createAndAuthorizeUser() {
 
-public class TransferringMoney {
-    @BeforeAll
-    public static void setupRestAssured() {
-        RestAssured.filters(
-                List.of(new RequestLoggingFilter(),
-                        new ResponseLoggingFilter()));
+        CreateUserRequest userRequest = CreateUserRequest.builder()
+                .username(RandomData.getUsername())
+                .password(RandomData.getPassword())
+                .role(UserRole.USER.toString())
+                .build();
+
+        LoginUserRequest loginUserRequest = LoginUserRequest.builder()
+                .username(userRequest.getUsername())
+                .password(userRequest.getPassword())
+                .build();
+
+        // создание пользователя
+        new AdminCreateUserRequester(
+                RequestSpecs.adminSpec(),
+                ResponseSpecs.entityWasCreated())
+                .post(userRequest);
+
+        // получаем токен юзера
+        new LoginUserRequester(
+                RequestSpecs.unauthSpec(),
+                ResponseSpecs.requestReturnsOK())
+                .post(loginUserRequest)
+                .extract()
+                .header("Authorization");
+
+        return userRequest;
     }
 
     @Test
     public void SuccessfulTransferOfFundsBetweenYourOwnAccounts() {
-        Random random = new Random();
-        int randomNumber = random.nextInt(500);
-        String userName = "Nikita" + randomNumber;
+        CreateUserRequest user = createAndAuthorizeUser();
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Nikita133$",
-                          "role": "USER"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
+        // создаем счет № 1 - отправитель
+        long senderAccountId = new CreateAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.entityWasCreated())
+                .postAndGetBody()
+                .getId();
 
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        
-                            {
-                          "username": "%s",
-                          "password": "Nikita133$"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .extract()
-                .header("Authorization");
+        // пополнение своего счета № 1
+        double initialAmount = RandomData.getAmount();
+        new UserTopUpAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .post(UserTopUpAccountRequest.builder()
+                        .accountId(senderAccountId)
+                        .amount(initialAmount)
+                        .build());
 
-        // создаем аккаунт (счет # 1)
-        int accountId1 = given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .post("http://localhost:4111/api/v1/accounts")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED)
-                .extract()
-                .path("id");
-        // создаем аккаунт (счет # 2)
-        int accountId2 = given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .post("http://localhost:4111/api/v1/accounts")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED)
-                .extract()
-                .path("id");
+        // создаем счет № 2 - получатель
+        long receiverAccountId = new CreateAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.entityWasCreated())
+                .postAndGetBody()
+                .getId();
 
-        // пополнение аккаунта № 1
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "accountId": %d,
-                          "amount": 2000.00
-                        }
-                        """.formatted(accountId1))
-                .post("http://localhost:4111/api/v1/accounts/deposit")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK);
+        // пополнение своего счета № 2
+        double transferAmount = initialAmount / 2;
+        UserTransferAccountResponse response = new UserTransferAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .postAndGetBody(UserTransferAccountRequest.builder()
+                        .senderAccountId(senderAccountId)
+                        .receiverAccountId(receiverAccountId)
+                        .amount(transferAmount)
+                        .build());
 
-        // перевод денег с одного аккаунта на другой
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "senderAccountId": %d,
-                          "receiverAccountId": %d,
-                          "amount": 1000
-                        }
-                        """.formatted(accountId1, accountId2))
-                .post("http://localhost:4111/api/v1/accounts/transfer")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK);
+        softly.assertThat(response.getSenderAccountId())
+                .as("Неверный ID отправителя в ответе")
+                .isEqualTo(senderAccountId);
 
+        softly.assertThat(response.getReceiverAccountId())
+                .as("Неверный ID получателя в ответе")
+                .isEqualTo(receiverAccountId);
+
+        softly.assertThat(response.getAmount())
+                .as("Сумма перевода в ответе не совпадает с отправленной")
+                .isEqualTo(transferAmount);
     }
 
     @Test
     public void AttemptToTransferAnAmountExceedingTheMaximumLimitOverTest() {
-        Random random = new Random();
-        int randomNumber = random.nextInt(500);
-        String userName = "Nikita" + randomNumber;
+        CreateUserRequest user = createAndAuthorizeUser();
+        CreateUserRequest user2 = createAndAuthorizeUser();
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Nikita133$",
-                          "role": "USER"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
+        // создаем счет № 1 - отправитель
+        long senderAccountId = new CreateAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.entityWasCreated())
+                .postAndGetBody()
+                .getId();
+        // Получаем сумму перевода (> 10000) и делим её на 3 равные части
+        double transferAmountOverLimit = RandomData.getTransferOverLimit();
+        double chunk = transferAmountOverLimit / 3.0;
 
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        
-                            {
-                          "username": "%s",
-                          "password": "Nikita133$"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .extract()
-                .header("Authorization");
+        // пополнение своего счета № 1
+        UserTopUpAccountRequester topUp = new UserTopUpAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK());
+        // пополняем баланс 3 раза
+        for (int i = 0; i < 3; i++) {
+            topUp.post(UserTopUpAccountRequest.builder().accountId(senderAccountId).amount(chunk).build());
+        }
 
-        // создаем аккаунт (счет # 1)
-        int accountId1 = given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .post("http://localhost:4111/api/v1/accounts")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED)
-                .extract()
-                .path("id");
-        // создаем аккаунт (счет # 2)
-        int accountId2 = given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .post("http://localhost:4111/api/v1/accounts")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED)
-                .extract()
-                .path("id");
+        // создаем счет № 2 - получатель
+        long receiverAccountId = new CreateAccountRequester(
+                RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword()),
+                ResponseSpecs.entityWasCreated())
+                .postAndGetBody()
+                .getId();
 
-        // пополнение аккаунта № 1
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "accountId": %d,
-                          "amount": 5000.00
-                        }
-                        """.formatted(accountId1))
-                .post("http://localhost:4111/api/v1/accounts/deposit")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK);
-        // пополнение аккаунта № 1
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "accountId": %d,
-                          "amount": 5000.00
-                        }
-                        """.formatted(accountId1))
-                .post("http://localhost:4111/api/v1/accounts/deposit")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK);
-        // пополнение аккаунта № 1
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "accountId": %d,
-                          "amount": 5000.00
-                        }
-                        """.formatted(accountId1))
-                .post("http://localhost:4111/api/v1/accounts/deposit")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK);
-
-        // перевод денег с одного аккаунта на другой
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "senderAccountId": %d,
-                          "receiverAccountId": %d,
-                          "amount": 10000.01
-                        }
-                        """.formatted(accountId1, accountId2))
-                .post("http://localhost:4111/api/v1/accounts/transfer")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_BAD_REQUEST)
-                .body("message", Matchers.containsString("Transfer amount cannot exceed 10000"));
+        // пополнение чужого счета
+        new UserTransferAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.TRANSFER_EXCEEDS_LIMIT))
+                .post(UserTransferAccountRequest.builder()
+                        .senderAccountId(senderAccountId)
+                        .receiverAccountId(receiverAccountId)
+                        .amount(transferAmountOverLimit)
+                        .build());
     }
 
     @Test
     public void AttemptToTransferAnAmountExceedingTheSenderIsBalance() {
-        Random random = new Random();
-        int randomNumber = random.nextInt(500);
-        String userName = "Nikita" + randomNumber;
+        CreateUserRequest user = createAndAuthorizeUser();
+        CreateUserRequest user2 = createAndAuthorizeUser();
 
-        // создание пользователя
-        given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .header("Authorization", "Basic YWRtaW46YWRtaW4=")
-                .body("""
-                        {
-                          "username": "%s",
-                          "password": "Nikita133$",
-                          "role": "USER"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/admin/users")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED);
+        // Создаем счет № 1 - отправитель
+        long senderAccountId = new CreateAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.entityWasCreated())
+                .postAndGetBody()
+                .getId();
 
-        // получаем токен юзера
-        String userAuthHeader = given()
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        
-                            {
-                          "username": "%s",
-                          "password": "Nikita133$"
-                        }
-                        """.formatted(userName))
-                .post("http://localhost:4111/api/v1/auth/login")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK)
-                .extract()
-                .header("Authorization");
+        // Пополняем счет № 1 на случайную валидную сумму (в пределах лимита 5000)
+        double initialAmount = RandomData.getAmount();
+        new UserTopUpAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .post(UserTopUpAccountRequest.builder()
+                        .accountId(senderAccountId)
+                        .amount(initialAmount)
+                        .build());
 
-        // создаем аккаунт (счет # 1)
-        int accountId1 = given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .post("http://localhost:4111/api/v1/accounts")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED)
-                .extract()
-                .path("id");
-        // создаем аккаунт (счет # 2)
-        int accountId2 = given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .post("http://localhost:4111/api/v1/accounts")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_CREATED)
-                .extract()
-                .path("id");
+        // Создаем счет № 2 - получатель
+        long receiverAccountId = new CreateAccountRequester(
+                RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword()),
+                ResponseSpecs.entityWasCreated())
+                .postAndGetBody()
+                .getId();
 
-        // пополнение аккаунта № 1
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "accountId": %d,
-                          "amount": 2000.00
-                        }
-                        """.formatted(accountId1))
-                .post("http://localhost:4111/api/v1/accounts/deposit")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_OK);
+        double invalidTransferAmount = initialAmount + RandomData.getAmount();
 
-        // перевод денег с одного аккаунта на другой
-        given()
-                .header("Authorization", userAuthHeader)
-                .contentType(ContentType.JSON)
-                .accept(ContentType.JSON)
-                .body("""
-                        {
-                          "senderAccountId": %d,
-                          "receiverAccountId": %d,
-                          "amount": 2000.01
-                        }
-                        """.formatted(accountId1, accountId2))
-                .post("http://localhost:4111/api/v1/accounts/transfer")
-                .then()
-                .assertThat()
-                .statusCode(HttpStatus.SC_BAD_REQUEST)
-                .body("message", Matchers.containsString("Invalid transfer: insufficient funds or invalid accounts"));
+        new UserTransferAccountRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.INSUFFICIENT_FUNDS))
+                .post(UserTransferAccountRequest.builder()
+                        .senderAccountId(senderAccountId)
+                        .receiverAccountId(receiverAccountId)
+                        .amount(invalidTransferAmount)
+                        .build());
     }
-
 }
