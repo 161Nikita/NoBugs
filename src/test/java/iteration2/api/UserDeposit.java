@@ -1,4 +1,4 @@
-package iteration2;
+package iteration2.api;
 
 import constants.ErrorMessages;
 import generators.RandomData;
