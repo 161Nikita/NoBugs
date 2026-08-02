@@ -6,15 +6,19 @@ import com.codeborne.selenide.Selectors;
 import com.codeborne.selenide.Selenide;
 import generators.RandomData;
 import models.CreateUserRequest;
+import models.LoginUserRequest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.openqa.selenium.Alert;
+import requests.skelethon.Endpoint;
+import requests.skelethon.requesters.CrudRequester;
 import requests.skelethon.steps.AdminSteps;
+import specs.RequestSpecs;
+import specs.ResponseSpecs;
 
 import java.util.Map;
 
-import static com.codeborne.selenide.Selenide.$;
-import static com.codeborne.selenide.Selenide.switchTo;
+import static com.codeborne.selenide.Selenide.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class UserDepositTest {
@@ -45,11 +49,23 @@ public class UserDepositTest {
         requests.skelethon.steps.AccountSteps.createAccount(
                 specs.RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
         );
-        // Авторизация на сайте (чтобы кука сетилась)
-        Selenide.open("/login");
-        $(Selectors.byAttribute("placeholder", "Username")).sendKeys(user.getUsername());
-        $(Selectors.byAttribute("placeholder", "Password")).sendKeys(user.getPassword());
-        $("button").click();
+
+        // авторизация через api
+        String userAuthHeader = new CrudRequester(
+                RequestSpecs.unauthSpec(),
+                Endpoint.LOGIN,
+                ResponseSpecs.requestReturnsOK())
+                .post(LoginUserRequest.builder().username(user.getUsername()).password(user.getPassword()).build())
+                .extract()
+                .header("Authorization");
+
+        Selenide.open("/");
+
+        executeJavaScript(
+                "localStorage.setItem('authToken', arguments[0]);", userAuthHeader);
+
+        Selenide.open("/dashboard");
+
         $(Selectors.byClassName("welcome-text")).shouldBe(Condition.visible).shouldHave(Condition.text("Welcome, noname!"));
         // переходим на страницу пополнения баланса
         $(".custom-btn.action-btn").shouldHave(Condition.text("Deposit Money")).click();
@@ -74,11 +90,22 @@ public class UserDepositTest {
         requests.skelethon.steps.AccountSteps.createAccount(
                 specs.RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
         );
-        // Авторизация на сайте (чтобы кука сетилась)
-        Selenide.open("/login");
-        $(Selectors.byAttribute("placeholder", "Username")).sendKeys(user.getUsername());
-        $(Selectors.byAttribute("placeholder", "Password")).sendKeys(user.getPassword());
-        $("button").click();
+        // авторизация через api
+        String userAuthHeader = new CrudRequester(
+                RequestSpecs.unauthSpec(),
+                Endpoint.LOGIN,
+                ResponseSpecs.requestReturnsOK())
+                .post(LoginUserRequest.builder().username(user.getUsername()).password(user.getPassword()).build())
+                .extract()
+                .header("Authorization");
+
+        Selenide.open("/");
+
+        executeJavaScript(
+                "localStorage.setItem('authToken', arguments[0]);", userAuthHeader);
+
+        Selenide.open("/dashboard");
+
         $(Selectors.byClassName("welcome-text")).shouldBe(Condition.visible).shouldHave(Condition.text("Welcome, noname!"));
         // переходим на страницу пополнения баланса
         Selenide.open("/deposit");

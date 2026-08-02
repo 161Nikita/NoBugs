@@ -7,6 +7,7 @@ import com.codeborne.selenide.Selenide;
 import generators.RandomData;
 import models.CreateAccountResponse;
 import models.CreateUserRequest;
+import models.LoginUserRequest;
 import models.UserTopUpAccountRequest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import specs.ResponseSpecs;
 import java.util.Map;
 
 import static com.codeborne.selenide.Selenide.$;
+import static com.codeborne.selenide.Selenide.executeJavaScript;
 
 public class TransferringMoneyTest {
     @BeforeAll
@@ -68,11 +70,21 @@ public class TransferringMoneyTest {
         // Рассчитываем сумму перевода (половина баланса, чтобы гарантированно не превысить лимиты)
         double transferAmount = initialAmount / 2;
 
-        // Авторизация
-        Selenide.open("/login");
-        $(Selectors.byAttribute("placeholder", "Username")).sendKeys(user.getUsername());
-        $(Selectors.byAttribute("placeholder", "Password")).sendKeys(user.getPassword());
-        $("button").click();
+        // авторизация через api
+        String userAuthHeader = new CrudRequester(
+                RequestSpecs.unauthSpec(),
+                Endpoint.LOGIN,
+                ResponseSpecs.requestReturnsOK())
+                .post(LoginUserRequest.builder().username(user.getUsername()).password(user.getPassword()).build())
+                .extract()
+                .header("Authorization");
+
+        Selenide.open("/");
+
+        executeJavaScript(
+                "localStorage.setItem('authToken', arguments[0]);", userAuthHeader);
+
+        Selenide.open("/dashboard");
         $(Selectors.byClassName("welcome-text")).shouldBe(Condition.visible).shouldHave(Condition.text("Welcome, noname!"));
 
         // Переходим на страницу перевода
@@ -143,10 +155,21 @@ public class TransferringMoneyTest {
         ).post(null);
 
         // Авторизуемся под первым пользователем (отправителем)
-        Selenide.open("/login");
-        $(Selectors.byAttribute("placeholder", "Username")).sendKeys(user.getUsername());
-        $(Selectors.byAttribute("placeholder", "Password")).sendKeys(user.getPassword());
-        $("button").click();
+        String userAuthHeader = new CrudRequester(
+                RequestSpecs.unauthSpec(),
+                Endpoint.LOGIN,
+                ResponseSpecs.requestReturnsOK())
+                .post(LoginUserRequest.builder().username(user.getUsername()).password(user.getPassword()).build())
+                .extract()
+                .header("Authorization");
+
+        Selenide.open("/");
+
+        executeJavaScript(
+                "localStorage.setItem('authToken', arguments[0]);", userAuthHeader);
+
+        Selenide.open("/dashboard");
+
         $(Selectors.byClassName("welcome-text")).shouldBe(Condition.visible).shouldHave(Condition.text("Welcome, noname!"));
 
         // Переходим на страницу перевода
@@ -214,11 +237,22 @@ public class TransferringMoneyTest {
         // Расчет невалидной суммы перевода (гарантированно больше доступного баланса)
         double invalidTransferAmount = initialAmount + RandomData.getAmount();
 
-        // Авторизация
-        Selenide.open("/login");
-        $(Selectors.byAttribute("placeholder", "Username")).sendKeys(user.getUsername());
-        $(Selectors.byAttribute("placeholder", "Password")).sendKeys(user.getPassword());
-        $("button").click();
+        // авторизация через api
+        String userAuthHeader = new CrudRequester(
+                RequestSpecs.unauthSpec(),
+                Endpoint.LOGIN,
+                ResponseSpecs.requestReturnsOK())
+                .post(LoginUserRequest.builder().username(user.getUsername()).password(user.getPassword()).build())
+                .extract()
+                .header("Authorization");
+
+        Selenide.open("/");
+
+        executeJavaScript(
+                "localStorage.setItem('authToken', arguments[0]);", userAuthHeader);
+
+        Selenide.open("/dashboard");
+
         $(Selectors.byClassName("welcome-text")).shouldBe(Condition.visible).shouldHave(Condition.text("Welcome, noname!"));
 
         // Переходим на страницу перевода
@@ -257,5 +291,4 @@ public class TransferringMoneyTest {
         // и кнопка отправки "Send Transfer" по-прежнему активна на экране
         $("button.green-btn").shouldBe(Condition.visible, Condition.enabled);
     }
-
 }
