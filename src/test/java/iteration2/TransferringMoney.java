@@ -3,6 +3,7 @@ package iteration2;
 import constants.ErrorMessages;
 import generators.RandomData;
 import models.*;
+import org.apache.http.HttpHeaders;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import requests.*;
@@ -36,7 +37,7 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.requestReturnsOK())
                 .post(loginUserRequest)
                 .extract()
-                .header("Authorization");
+                .header(HttpHeaders.AUTHORIZATION);
 
         return userRequest;
     }
@@ -119,19 +120,21 @@ public class TransferringMoney extends BaseTest {
         double transferAmountOverLimit = RandomData.getTransferOverLimit();
         double chunk = transferAmountOverLimit / 3.0;
         // переменная для хранения баланса
-        float actualSenderBalance = 0;
 
         // пополнение своего счета № 1
         UserTopUpAccountRequester topUp = new UserTopUpAccountRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK());
-        // пополняем баланс 3 раза
-        for (int i = 0; i < 3; i++) {
-            actualSenderBalance = topUp.post(UserTopUpAccountRequest.builder().accountId(senderAccountId)
+        // создаем массив из 1 элемента
+        float[] actualSenderBalance = new float[1];
+
+        // вызываем метод repeat, внутри извлекаем баланс в массив
+        repeat(3, () -> {
+            actualSenderBalance[0] = topUp.post(UserTopUpAccountRequest.builder().accountId(senderAccountId)
                             .amount(chunk).build())
                     .extract()
                     .path("balance");
-        }
+        });
 
         // создаем счет № 2 - получатель
         long receiverAccountId = new CreateAccountRequester(
@@ -156,7 +159,7 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.requestReturnsOK())
                 .get()
                 .body("find { it.id == " + senderAccountId + " }.balance",
-                        Matchers.equalTo((float) (Math.round(actualSenderBalance * 100.0) / 100.0)));
+                        Matchers.equalTo((float) (Math.round(actualSenderBalance[0] * 100.0) / 100.0)));
 
         new UserGetAccountsRequester(
                 RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword()),
@@ -218,5 +221,10 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.requestReturnsOK())
                 .get()
                 .body("find { it.id == " + receiverAccountId + " }.balance", Matchers.equalTo(0.0f));
+    }
+    private void repeat(int times, Runnable action) {
+        for (int i = 0; i < times; i++) {
+            action.run();
+        }
     }
 }

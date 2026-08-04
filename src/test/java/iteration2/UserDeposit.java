@@ -6,6 +6,7 @@ import models.CreateUserRequest;
 import models.LoginUserRequest;
 import models.UserRole;
 import models.UserTopUpAccountRequest;
+import org.apache.http.HttpHeaders;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import requests.*;
@@ -40,7 +41,7 @@ public class UserDeposit {
                 ResponseSpecs.requestReturnsOK())
                 .post(loginUserRequest)
                 .extract()
-                .header("Authorization");
+                .header(HttpHeaders.AUTHORIZATION);
 
         return userRequest;
     }

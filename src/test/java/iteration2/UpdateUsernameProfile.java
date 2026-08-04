@@ -6,6 +6,7 @@ import models.CreateUserRequest;
 import models.LoginUserRequest;
 import models.UpdateProfileRequest;
 import models.UserRole;
+import org.apache.http.HttpHeaders;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import requests.AdminCreateUserRequester;
@@ -39,7 +40,7 @@ public class UpdateUsernameProfile extends BaseTest {
                 ResponseSpecs.requestReturnsOK())
                 .post(loginUserRequest)
                 .extract()
-                .header("Authorization");
+                .header(HttpHeaders.AUTHORIZATION);
 
         return userRequest;
     }
@@ -47,20 +48,20 @@ public class UpdateUsernameProfile extends BaseTest {
     @Test
     public void SuccessfulNameChangeToAValidFormat() {
         CreateUserRequest user = createAndAuthorizeUser();
-
+        String randomName = RandomData.getUsername() + " " + RandomData.getUsername();
         // Обновляем имя пользователя на валидное (Имя Фамилия)
         new UpdateProfileRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK()
         ).put(UpdateProfileRequest.builder()
-                .name("Nikita Krapivin")
+                .name(randomName)
                 .build());
         // Проверяем методом гет, что имя действительно записалось в бд. !БАГ! имя по прежнему null
         new UserGetProfileRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .get()
-                .body("name", Matchers.equalTo("Nikita Krapivin"));
+                .body("name", Matchers.equalTo(randomName));
     }
 
     @Test
@@ -72,7 +73,7 @@ public class UpdateUsernameProfile extends BaseTest {
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsBadRequest(ErrorMessages.PASSWORD_CHANGE_NOT_ALLOWED)
         ).put(UpdateProfileRequest.builder()
-                .name("Nikita Krapivin")
+                .name(RandomData.getUsername() + " " + RandomData.getUsername())
                 .password(user.getPassword() + "1") // Передаем измененный пароль
                 .build());
         // Проверка с помощью гет запроса, что из-за ошибки запроса имя пользователя не изменилось (осталось null)
@@ -92,7 +93,7 @@ public class UpdateUsernameProfile extends BaseTest {
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsBadRequest(ErrorMessages.INVALID_NAME_FORMAT)
         ).put(UpdateProfileRequest.builder()
-                .name("Krapivin")
+                .name(RandomData.getUsername())
                 .build());
         // Проверка с помощью гет запроса, что поле name осталось null
         new UserGetProfileRequester(
