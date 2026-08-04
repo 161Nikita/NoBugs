@@ -119,6 +119,19 @@ public class TransferringMoney {
                 .assertThat()
                 .statusCode(HttpStatus.SC_OK);
 
+        // Проверка через GET, что балансы изменились
+                given()
+                .header("Authorization", userAuthHeader)
+                .accept(ContentType.JSON)
+                .get("http://localhost:4111/api/v1/customer/accounts") // Новая ручка
+                .then()
+                .assertThat()
+                .statusCode(HttpStatus.SC_OK)
+                // Ищем в массиве accounts объект с id первого счета и проверяем его баланс (было 2000, перевели 1000 -> осталось 1000)
+                .body("find { it.id == " + accountId1 + " }.balance", Matchers.equalTo(1000.0f))
+                // Ищем в массиве accounts объект со вторым счетом (было 0, получили 1000 -> стало 1000)
+                .body("find { it.id == " + accountId2 + " }.balance", Matchers.equalTo(1000.0f));
+
     }
 
     @Test
@@ -248,6 +261,19 @@ public class TransferringMoney {
                 .assertThat()
                 .statusCode(HttpStatus.SC_BAD_REQUEST)
                 .body("message", Matchers.containsString("Transfer amount cannot exceed 10000"));
+
+        // Проверка через GET, что балансы НЕ изменились
+        given()
+                .header("Authorization", userAuthHeader)
+                .accept(ContentType.JSON)
+                .get("http://localhost:4111/api/v1/customer/accounts")
+                .then()
+                .assertThat()
+                .statusCode(HttpStatus.SC_OK)
+                // Ищем в массиве accounts объект с id первого счета и проверяем его баланс (было 15000, попытались перевести 10000.01 -> осталось 15000)
+                .body("find { it.id == " + accountId1 + " }.balance", Matchers.equalTo(15000.0f))
+                // Ищем в массиве accounts объект со вторым счетом (было 0, -> стало 0)
+                .body("find { it.id == " + accountId2 + " }.balance", Matchers.equalTo(0.0f));
     }
 
     @Test
@@ -347,6 +373,18 @@ public class TransferringMoney {
                 .assertThat()
                 .statusCode(HttpStatus.SC_BAD_REQUEST)
                 .body("message", Matchers.containsString("Invalid transfer: insufficient funds or invalid accounts"));
-    }
 
+        // Проверка через GET, что балансы НЕ изменились при нехватке средств
+        given()
+                .header("Authorization", userAuthHeader)
+                .accept(ContentType.JSON)
+                .get("http://localhost:4111/api/v1/customer/accounts")
+                .then()
+                .assertThat()
+                .statusCode(HttpStatus.SC_OK)
+                // На первом счету должно остаться 2000.00
+                .body("find { it.id == " + accountId1 + " }.balance", Matchers.equalTo(2000.0f))
+                // На втором счету должно остаться 0.00
+                .body("find { it.id == " + accountId2 + " }.balance", Matchers.equalTo(0.0f));
+    }
 }

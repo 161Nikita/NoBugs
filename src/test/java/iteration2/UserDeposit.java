@@ -92,6 +92,16 @@ public class UserDeposit {
                 .then()
                 .assertThat()
                 .statusCode(HttpStatus.SC_OK);
+
+        // Проверка через GET, что баланс счета увеличился до 2000
+        given()
+                .header("Authorization", userAuthHeader)
+                .accept(ContentType.JSON)
+                .get("http://localhost:4111/api/v1/customer/accounts")
+                .then()
+                .assertThat()
+                .statusCode(HttpStatus.SC_OK)
+                .body("find { it.id == " + accountId + " }.balance", Matchers.equalTo(2000.0f));
     }
 
     @Test
@@ -164,6 +174,15 @@ public class UserDeposit {
                 .assertThat()
                 .statusCode(HttpStatus.SC_BAD_REQUEST)
                 .body("message", Matchers.containsString("Deposit amount exceeds the 5000 limit"));
+        // Проверка через GET, что после ошибки лимита баланс остался равен 0
+        given()
+                .header("Authorization", userAuthHeader)
+                .accept(ContentType.JSON)
+                .get("http://localhost:4111/api/v1/customer/accounts")
+                .then()
+                .assertThat()
+                .statusCode(HttpStatus.SC_OK)
+                .body("find { it.id == " + accountId + " }.balance", Matchers.equalTo(0.0f));
     }
 
     @Test
@@ -223,5 +242,14 @@ public class UserDeposit {
                 .assertThat()
                 .statusCode(HttpStatus.SC_FORBIDDEN)
                 .body("message", Matchers.containsString("Unauthorized access to account"));
+        // Проверка через GET, что у нашего юзера по-прежнему нет активных счетов (массив пустой)
+        given()
+                .header("Authorization", userAuthHeader)
+                .accept(ContentType.JSON)
+                .get("http://localhost:4111/api/v1/customer/accounts")
+                .then()
+                .assertThat()
+                .statusCode(HttpStatus.SC_OK)
+                .body("$", Matchers.hasSize(0));
     }
 }
