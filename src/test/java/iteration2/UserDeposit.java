@@ -2,7 +2,9 @@ package iteration2;
 
 import constants.ErrorMessages;
 import generators.RandomData;
-import models.*;
+import models.CreateAccountResponse;
+import models.CreateUserRequest;
+import models.UserTopUpAccountRequest;
 import org.junit.jupiter.api.Test;
 import requests.skelethon.Endpoint;
 import requests.skelethon.requesters.CrudRequester;
@@ -10,8 +12,7 @@ import requests.skelethon.requesters.ValidatedCrudRequester;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
 
-import static io.restassured.RestAssured.given;
-import static io.restassured.RestAssured.post;
+import java.util.List;
 
 
 public class UserDeposit extends BaseTest {
@@ -23,6 +24,8 @@ public class UserDeposit extends BaseTest {
         long accountId = requests.skelethon.steps.AccountSteps.createAccount(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
         ).getId();
+        // генерация суммы пополнения
+        double depositAmount = RandomData.getAmount();
 
         // Пополнение своего счета
         new CrudRequester(
@@ -31,8 +34,24 @@ public class UserDeposit extends BaseTest {
                 ResponseSpecs.requestReturnsOK()
         ).post(UserTopUpAccountRequest.builder()
                 .accountId(accountId)
-                .amount(RandomData.getAmount())
+                .amount(depositAmount)
                 .build());
+
+        List<CreateAccountResponse> accounts = new ValidatedCrudRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                Endpoint.CUSTOMER_ACCOUNTS,
+                ResponseSpecs.requestReturnsOK()
+        ).getList();
+
+        // Округляем отправленную сумму до копеек
+        double expectedBalance = Math.round(depositAmount * 100.0) / 100.0;
+
+        // проверка коллекции
+        softly.assertThat(accounts)
+                .as("Проверка, что баланс счета увеличился на сумму депозита")
+                .filteredOn(account -> account.getId() == accountId)
+                .extracting(CreateAccountResponse::getBalance)
+                .containsExactly(expectedBalance);
     }
 
     @Test
@@ -44,7 +63,7 @@ public class UserDeposit extends BaseTest {
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.ACCOUNTS,
                 ResponseSpecs.entityWasCreated()
-        ).post(null);
+        ).post();
 
         long accountId = accountResponse.getId();
 
@@ -57,6 +76,18 @@ public class UserDeposit extends BaseTest {
                 .accountId(accountId)
                 .amount(RandomData.getAmountOverLimit())
                 .build());
+
+        List<CreateAccountResponse> accounts = new ValidatedCrudRequester<CreateAccountResponse>(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                Endpoint.CUSTOMER_ACCOUNTS,
+                ResponseSpecs.requestReturnsOK()
+        ).getList();
+
+        softly.assertThat(accounts)
+                .as("Проверка, что после отклонения операции лимита баланс остался нулевым")
+                .filteredOn(account -> account.getId() == accountId)
+                .extracting(CreateAccountResponse::getBalance)
+                .containsExactly(0.0);
     }
 
     @Test
@@ -73,5 +104,13 @@ public class UserDeposit extends BaseTest {
                 .accountId(RandomData.getNonExistentAccountId())
                 .amount(RandomData.getAmount())
                 .build());
+        List<CreateAccountResponse> accounts = new ValidatedCrudRequester<CreateAccountResponse>(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                Endpoint.CUSTOMER_ACCOUNTS,
+                ResponseSpecs.requestReturnsOK()
+        ).getList();
+        softly.assertThat(accounts)
+                .as("Проверка, что у пользователя нет зарегистрированных счетов в системе")
+                .isEmpty();
     }
 }

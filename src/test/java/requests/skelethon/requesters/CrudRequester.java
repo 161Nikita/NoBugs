@@ -26,10 +26,21 @@ public class CrudRequester extends HttpRequest implements CrudEndpointInterface 
                 .assertThat()
                 .spec(responseSpecification);
     }
+    // Перегруженный метод без параметров
+    public io.restassured.response.ValidatableResponse post() {
+        return post(null);
+    }
 
     @Override
-    public Object get(long id) {
-        return null;
+    public ValidatableResponse get(long id) {
+        String finalUrl = (id == -1) ? endpoint.getUrl() : endpoint.getUrl() + "/" + id;
+
+        return given()
+                .spec(requestSpecification)
+                .get(finalUrl)
+                .then()
+                .assertThat()
+                .spec(responseSpecification);
     }
 
     @Override

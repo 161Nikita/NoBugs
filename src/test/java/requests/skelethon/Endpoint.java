@@ -24,11 +24,21 @@ public enum Endpoint {
             BaseModel.class,
             CreateAccountResponse.class
     ),
+    CUSTOMER_ACCOUNTS(
+            "/customer/accounts",
+            BaseModel.class,
+            CreateAccountResponse.class
+    ),
 
     UPDATE_PROFILE(
             "/customer/profile",
             UpdateProfileRequest.class,
             BaseModel.class
+    ),
+    CUSTOMER_PROFILE(
+            "/customer/profile",
+            BaseModel.class,
+            CreateUserResponse.class
     ),
 
     USER_TOP_UP_ACCOUNT(
