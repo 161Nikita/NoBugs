@@ -3,6 +3,7 @@ package iteration2;
 import constants.ErrorMessages;
 import generators.RandomData;
 import models.*;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import requests.*;
 import specs.RequestSpecs;
@@ -90,6 +91,17 @@ public class TransferringMoney extends BaseTest {
         softly.assertThat(response.getAmount())
                 .as("Сумма перевода в ответе не совпадает с отправленной")
                 .isEqualTo(transferAmount);
+
+        // Проверка с помощью гет, что произошло фактическое изменение балансов
+        float expectedSenderBalance = (float) (Math.round((initialAmount - transferAmount) * 100.0) / 100.0);
+        float expectedReceiverBalance = (float) (Math.round(transferAmount * 100.0) / 100.0);
+
+        new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("find { it.id == " + senderAccountId + " }.balance", Matchers.equalTo(expectedSenderBalance))
+                .body("find { it.id == " + receiverAccountId + " }.balance", Matchers.equalTo(expectedReceiverBalance));
     }
 
     @Test
@@ -106,6 +118,8 @@ public class TransferringMoney extends BaseTest {
         // Получаем сумму перевода (> 10000) и делим её на 3 равные части
         double transferAmountOverLimit = RandomData.getTransferOverLimit();
         double chunk = transferAmountOverLimit / 3.0;
+        // переменная для хранения баланса
+        float actualSenderBalance = 0;
 
         // пополнение своего счета № 1
         UserTopUpAccountRequester topUp = new UserTopUpAccountRequester(
@@ -113,7 +127,10 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.requestReturnsOK());
         // пополняем баланс 3 раза
         for (int i = 0; i < 3; i++) {
-            topUp.post(UserTopUpAccountRequest.builder().accountId(senderAccountId).amount(chunk).build());
+            actualSenderBalance = topUp.post(UserTopUpAccountRequest.builder().accountId(senderAccountId)
+                            .amount(chunk).build())
+                    .extract()
+                    .path("balance");
         }
 
         // создаем счет № 2 - получатель
@@ -132,6 +149,20 @@ public class TransferringMoney extends BaseTest {
                         .receiverAccountId(receiverAccountId)
                         .amount(transferAmountOverLimit)
                         .build());
+
+        // Проверяем через гет, что после ошибки, балансы не изменились
+        new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("find { it.id == " + senderAccountId + " }.balance",
+                        Matchers.equalTo((float) (Math.round(actualSenderBalance * 100.0) / 100.0)));
+
+        new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("find { it.id == " + receiverAccountId + " }.balance", Matchers.equalTo(0.0f));
     }
 
     @Test
@@ -162,7 +193,7 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.entityWasCreated())
                 .postAndGetBody()
                 .getId();
-
+        // Вычисляем заведомо невалидную сумму перевода (больше, чем есть на балансе)
         double invalidTransferAmount = initialAmount + RandomData.getAmount();
 
         new UserTransferAccountRequester(
@@ -173,5 +204,19 @@ public class TransferringMoney extends BaseTest {
                         .receiverAccountId(receiverAccountId)
                         .amount(invalidTransferAmount)
                         .build());
+        // Округляем исходный баланс до копеек
+        float expectedSenderBalance = (float) (Math.round(initialAmount * 100.0) / 100.0);
+        // Проверяем через GET-реквестер, что после ошибки нехватки средств балансы НЕ изменились
+        new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("find { it.id == " + senderAccountId + " }.balance", Matchers.equalTo(expectedSenderBalance));
+
+        new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("find { it.id == " + receiverAccountId + " }.balance", Matchers.equalTo(0.0f));
     }
 }

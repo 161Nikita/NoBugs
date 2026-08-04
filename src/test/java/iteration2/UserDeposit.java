@@ -2,24 +2,15 @@ package iteration2;
 
 import constants.ErrorMessages;
 import generators.RandomData;
-import io.restassured.http.ContentType;
 import models.CreateUserRequest;
 import models.LoginUserRequest;
 import models.UserRole;
 import models.UserTopUpAccountRequest;
-import org.apache.http.HttpStatus;
 import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
-import requests.AdminCreateUserRequester;
-import requests.CreateAccountRequester;
-import requests.LoginUserRequester;
-import requests.UserTopUpAccountRequester;
+import requests.*;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
-
-import java.util.Random;
-
-import static io.restassured.RestAssured.given;
 
 
 public class UserDeposit {
@@ -56,24 +47,30 @@ public class UserDeposit {
 
     @Test
     public void depositTopUpTest() {
-
         CreateUserRequest user = createAndAuthorizeUser();
-
         // создаем счет
         long accountId = new CreateAccountRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.entityWasCreated())
                 .postAndGetBody()
                 .getId();
-
         // пополнение своего счета
-        new UserTopUpAccountRequester(
+        Number actualDepositedAmount = new UserTopUpAccountRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .post(UserTopUpAccountRequest.builder()
                         .accountId(accountId)
                         .amount(RandomData.getAmount())
-                        .build());
+                        .build())
+                .extract()
+                .path("depositAmount");
+        // Проверяем баланс через get
+        new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("find { it.id == " + accountId + " }.balance",
+                        Matchers.equalTo((float) (Math.round(actualDepositedAmount.doubleValue() * 100.0) / 100.0)));
     }
 
     @Test
@@ -97,6 +94,12 @@ public class UserDeposit {
                         .accountId(accountId)
                         .amount(RandomData.getAmountOverLimit())
                         .build());
+        // Проверяем баланс через get
+        new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("find { it.id == " + accountId + " }.balance", Matchers.equalTo(0.0f));
     }
 
     @Test
@@ -113,5 +116,11 @@ public class UserDeposit {
                         .accountId(RandomData.getNonExistentAccountId())
                         .amount(RandomData.getAmount())
                         .build());
+        // Проверяем что у нашего юзера по-прежнему нет счетов
+        new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("size()", Matchers.equalTo(0));
     }
 }

@@ -6,10 +6,12 @@ import models.CreateUserRequest;
 import models.LoginUserRequest;
 import models.UpdateProfileRequest;
 import models.UserRole;
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import requests.AdminCreateUserRequester;
 import requests.LoginUserRequester;
 import requests.UpdateProfileRequester;
+import requests.UserGetProfileRequester;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
 
@@ -53,6 +55,12 @@ public class UpdateUsernameProfile extends BaseTest {
         ).put(UpdateProfileRequest.builder()
                 .name("Nikita Krapivin")
                 .build());
+        // Проверяем методом гет, что имя действительно записалось в бд. !БАГ! имя по прежнему null
+        new UserGetProfileRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("name", Matchers.equalTo("Nikita Krapivin"));
     }
 
     @Test
@@ -67,6 +75,12 @@ public class UpdateUsernameProfile extends BaseTest {
                 .name("Nikita Krapivin")
                 .password(user.getPassword() + "1") // Передаем измененный пароль
                 .build());
+        // Проверка с помощью гет запроса, что из-за ошибки запроса имя пользователя не изменилось (осталось null)
+        new UserGetProfileRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("name", Matchers.nullValue());
     }
 
     @Test
@@ -80,5 +94,11 @@ public class UpdateUsernameProfile extends BaseTest {
         ).put(UpdateProfileRequest.builder()
                 .name("Krapivin")
                 .build());
+        // Проверка с помощью гет запроса, что поле name осталось null
+        new UserGetProfileRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .body("name", Matchers.nullValue());
     }
 }
