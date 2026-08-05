@@ -1,77 +1,36 @@
 package iteration2.ui;
 
-import com.codeborne.selenide.Condition;
-import com.codeborne.selenide.Configuration;
-import com.codeborne.selenide.Selectors;
-import com.codeborne.selenide.Selenide;
+import generators.RandomData;
+import iteration2.ui.pages.BankAlert;
+import iteration2.ui.pages.UserDashboard;
 import models.CreateUserRequest;
-import models.LoginUserRequest;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import org.openqa.selenium.remote.DesiredCapabilities;
-import requests.skelethon.Endpoint;
-import requests.skelethon.requesters.CrudRequester;
 import requests.skelethon.steps.AdminSteps;
-import specs.RequestSpecs;
-import specs.ResponseSpecs;
 
-import java.util.Map;
-
-import static com.codeborne.selenide.Selenide.$;
-import static com.codeborne.selenide.Selenide.executeJavaScript;
-
-public class UpdateUsernameProfileTest {
-    @BeforeAll
-    public static void setupSelenoid() {
-        Configuration.remote = "http://localhost:4444/wd/hub";
-        Configuration.baseUrl = "http://192.168.1.101:3000";
-        Configuration.browser = "chrome";
-        Configuration.browserVersion = "126.0";
-        Configuration.browserSize = "1920x1080";
-
-        DesiredCapabilities capabilities = new DesiredCapabilities();
-        capabilities.setCapability("selenoid:options", Map.of(
-                "enableVNC", true,
-                "enableLog", true
-        ));
-        Configuration.browserCapabilities = capabilities;
-    }
+public class UpdateUsernameProfileTest extends BaseUiTest {
 
     @Test
     public void SuccessfulNameChangeToAValidFormatUiTest() {
         // создаем юзера
         CreateUserRequest user = AdminSteps.createUser();
+        String randomName = RandomData.getUsername() + " " + RandomData.getUsername();
 
-        String userAuthHeader = new CrudRequester(
-                RequestSpecs.unauthSpec(),
-                Endpoint.LOGIN,
-                ResponseSpecs.requestReturnsOK())
-                .post(LoginUserRequest.builder().username(user.getUsername()).password(user.getPassword()).build())
-                .extract()
-                .header("Authorization");
-
-        Selenide.open("/");
-
-        executeJavaScript(
-                "localStorage.setItem('authToken', arguments[0]);", userAuthHeader);
-
-        Selenide.open("/dashboard");
-
-        // Ожидаем загрузку личного кабинета
-        $(Selectors.byClassName("welcome-text")).shouldBe(Condition.visible).shouldHave(Condition.text("Welcome, noname!"));
-        // Кликаем по блоку профиля в шапке сайта
-        $(Selectors.byClassName("user-info")).shouldBe(Condition.visible).click();
-        // Переходим на страницу профиля
-        Selenide.open("/edit-profile");
-        // Находим инпут для ввода имени и вводим новое имя
-        $(Selectors.byAttribute("placeholder", "Enter new name")).sendKeys("Nikita Krapivin");
-        // Нажимаем кнопку Save Changes
-        $(Selectors.withText("Save Changes")).click();
-        Selenide.confirm("✅ Name updated successfully!");
-        // Проверка, что в блоке профиля имя "Noname" успешно изменилось
-        $(".profile-header")
-                .shouldBe(Condition.visible)
-                .shouldHave(Condition.text("Nikita Krapivin"));
+        // авторизация
+        authAsUser(user);
+        new UserDashboard()
+                // Переход по адресу /dashboard и автоматическая проверка "Welcome, noname!"
+                .open()
+                // Кликаем по блоку профиля в шапке сайта и переходим на EditProfilePage
+                .navigateToEditProfile()
+                // Вводим новое валидное имя
+                .enterNewName(randomName)
+                // Нажимаем кнопку Save Changes
+                .clickSave()
+                // Ловим и подтверждаем алерт (метод унаследован в BasePage, используем ваш enum)
+                // Примечание: Укажите точный элемент BankAlert из вашего проекта, например NAME_UPDATED
+                .checkAlertMessageAndAccept(BankAlert.NAME_UPDATED)
+                // Проверка, что имя в шапке профиля успешно обновилось
+                .verifyUpdatedName(randomName);
         // !БАГ! — запрос put не уходит
     }
 
@@ -80,26 +39,15 @@ public class UpdateUsernameProfileTest {
         // создаем юзера
         CreateUserRequest user = AdminSteps.createUser();
 
-        String userAuthHeader = new CrudRequester(
-                RequestSpecs.unauthSpec(),
-                Endpoint.LOGIN,
-                ResponseSpecs.requestReturnsOK())
-                .post(LoginUserRequest.builder().username(user.getUsername()).password(user.getPassword()).build())
-                .extract()
-                .header("Authorization");
+        authAsUser(user);
 
-        Selenide.open("/");
-
-        executeJavaScript(
-                "localStorage.setItem('authToken', arguments[0]);", userAuthHeader);
-
-        Selenide.open("/dashboard");
-
-        $(".profile-header").shouldBe(Condition.visible).click();
-
-        // Убеждаемся, что поля для ввода пароля или изменения пароля физически нет на этой форме
-        $(Selectors.byAttribute("placeholder", "Enter new password")).shouldNotBe(Condition.exist);
-        $(Selectors.byAttribute("type", "password")).shouldNotBe(Condition.exist);
+        new UserDashboard()
+                // Переход по адресу /dashboard и автоматическая проверка "Welcome, noname!"
+                .open()
+                // Переходим на страницу профиля
+                .navigateToEditProfile()
+                // Убеждаемся, что полей для ввода пароля физически нет на этой форме
+                .verifyPasswordFieldsDoNotExist();
     }
 
     @Test
@@ -108,35 +56,20 @@ public class UpdateUsernameProfileTest {
         // создаем юзера
         CreateUserRequest user = AdminSteps.createUser();
 
-        String userAuthHeader = new CrudRequester(
-                RequestSpecs.unauthSpec(),
-                Endpoint.LOGIN,
-                ResponseSpecs.requestReturnsOK())
-                .post(LoginUserRequest.builder().username(user.getUsername()).password(user.getPassword()).build())
-                .extract()
-                .header("Authorization");
+        authAsUser(user);
 
-        Selenide.open("/");
-
-        executeJavaScript(
-                "localStorage.setItem('authToken', arguments[0]);", userAuthHeader);
-
-        Selenide.open("/dashboard");
-
-        // Ожидаем загрузку личного кабинета
-        $(Selectors.byClassName("welcome-text")).shouldBe(Condition.visible);
-
-        // Переходим на страницу профиля
-        Selenide.open("/edit-profile");
-
-        // Находим инпут для ввода имени и вводим новое имя
-        $(Selectors.byAttribute("placeholder", "Enter new name")).sendKeys("Krapivin");
-
-        // Нажимаем кнопку Save Changes
-        $(Selectors.withText("Save Changes")).click();
-
-        // Должен быть алерт с текстом о двух словах в имени
-        Selenide.confirm("Name must contain two words with letters only");
+        // 3. UI-шаги через цепочку Page Object
+        new UserDashboard()
+                // Переход по адресу /dashboard и автоматическая проверка "Welcome, noname!"
+                .open()
+                // Переходим на страницу профиля через наш готовый метод
+                .navigateToEditProfile()
+                // Вводим некорректное имя, состоящее всего из одного слова
+                .enterNewName(RandomData.getUsername())
+                // Нажимаем кнопку Save Changes
+                .clickSave()
+                // Проверяем алерт валидации
+                .checkAlertMessageAndAccept(BankAlert.INVALID_NAME_FORMAT);
         //БАГ ФРОНТА. Некорректно выводит сообщение.
     }
 }

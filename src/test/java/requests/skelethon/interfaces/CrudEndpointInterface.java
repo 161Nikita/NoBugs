@@ -1,6 +1,5 @@
 package requests.skelethon.interfaces;
 
-import io.restassured.response.ValidatableResponse;
 import models.BaseModel;
 
 public interface CrudEndpointInterface {
