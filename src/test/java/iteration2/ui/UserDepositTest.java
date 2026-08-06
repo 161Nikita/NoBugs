@@ -1,37 +1,35 @@
 package iteration2.ui;
 
-import com.codeborne.selenide.Condition;
-import com.codeborne.selenide.Selectors;
-import com.codeborne.selenide.Selenide;
+import common.annotations.Browsers;
+import common.annotations.UserSession;
+import common.storage.SessionStorage;
+import extensions.Platform;
 import generators.RandomData;
 import iteration2.ui.pages.BankAlert;
 import iteration2.ui.pages.UserDashboard;
+import models.CreateAccountResponse;
 import models.CreateUserRequest;
-import models.LoginUserRequest;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.openqa.selenium.Alert;
-import requests.skelethon.Endpoint;
-import requests.skelethon.requesters.CrudRequester;
-import requests.skelethon.steps.AdminSteps;
-import specs.RequestSpecs;
-import specs.ResponseSpecs;
+import requests.skelethon.steps.AccountSteps;
 
-import static com.codeborne.selenide.Selenide.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+@UserSession
 
 public class UserDepositTest extends BaseUiTest {
+
+    @BeforeEach
+    public void createAccountPrecondition() {
+        // достаем юзера
+        CreateUserRequest user = SessionStorage.getUser();
+
+        // создаем счет
+        CreateAccountResponse account = AccountSteps.createAccount(SessionStorage.getSteps().getUserSpec());
+        SessionStorage.saveAccount(user, account);
+    }
 
 
     @Test
     public void depositTopUpTest() {
-        // создаем юзера
-        CreateUserRequest user = AdminSteps.createUser();
-        // создаем счет
-        requests.skelethon.steps.AccountSteps.createAccount(
-                specs.RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
-        );
-        // авторизация
-        authAsUser(user);
         // заходим на страницу и ищем локаторы для текста приветствия и кнопки депозита
         new UserDashboard()
                 // переход по адресу /dashboard и проверяем "Welcome, noname!"
@@ -40,7 +38,7 @@ public class UserDepositTest extends BaseUiTest {
                 .depositMoney()
                 // из выпадающего списка берем первый счет
                 .selectFirstAccount()
-                // в поле ввода пишем число превышающий лимит
+                // в поле ввода передаем валидную сумму
                 .enterAmount(RandomData.getAmount())
                 // Нажимаем на кнопку Deposit и проверяем успешное пополнение баланса
                 // !БАГ! в модальном окне ошибка пополнения
@@ -49,15 +47,6 @@ public class UserDepositTest extends BaseUiTest {
 
     @Test
     public void AttemptToTopUpByAnAmountExceedingTheLimitTest() {
-        // создаем юзера
-        CreateUserRequest user = AdminSteps.createUser();
-        // создаем счет для этого юзера
-        requests.skelethon.steps.AccountSteps.createAccount(
-                specs.RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
-        );
-        // авторизация
-        authAsUser(user);
-
         // заходим на страницу и ищем локаторы для текста приветствия и кнопки депозита
         new UserDashboard()
                 // переход по адресу /dashboard и проверяем "Welcome, noname!"

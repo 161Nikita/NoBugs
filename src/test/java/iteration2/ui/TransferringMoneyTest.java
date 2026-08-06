@@ -1,6 +1,10 @@
 package iteration2.ui;
 
 import com.codeborne.selenide.Selenide;
+import common.annotations.Browsers;
+import common.annotations.UserSession;
+import common.storage.SessionStorage;
+import extensions.Platform;
 import generators.RandomData;
 import iteration2.ui.pages.TransferPage;
 import iteration2.ui.pages.UserDashboard;
@@ -8,18 +12,20 @@ import models.CreateAccountResponse;
 import models.CreateUserRequest;
 import org.junit.jupiter.api.Test;
 import requests.skelethon.steps.AccountSteps;
-import requests.skelethon.steps.AdminSteps;
+
 
 public class TransferringMoneyTest extends BaseUiTest {
 
     @Test
+    @UserSession
     public void SuccessfulTransferOfFundsBetweenYourOwnAccountsUITest() {
         // Готовим данные через api
-        CreateUserRequest user = AdminSteps.createUser();
-        var authSpec = specs.RequestSpecs.authAsUser(user.getUsername(), user.getPassword());
+        CreateUserRequest user = SessionStorage.getUser();
+        var authSpec = SessionStorage.getSteps().getUserSpec();
 
         // Создаем счет-отправитель через api
         CreateAccountResponse senderAccount = AccountSteps.createAccount(authSpec);
+        SessionStorage.saveAccount(user, senderAccount);
 
         // Пополняем его через api
         double initialAmount = RandomData.getAmount();
@@ -27,11 +33,10 @@ public class TransferringMoneyTest extends BaseUiTest {
 
         // Создаем счет-получатель через API
         CreateAccountResponse receiverAccount = AccountSteps.createAccount(authSpec);
+        SessionStorage.saveAccount(user, receiverAccount);
 
         // Рассчитываем сумму перевода (половина баланса, чтобы гарантированно не превысить лимиты)
         double transferAmount = initialAmount / 2;
-
-        authAsUser(user);
 
         new UserDashboard()
                 // переход по адресу /dashboard и проверяем "Welcome, noname!"
@@ -39,9 +44,10 @@ public class TransferringMoneyTest extends BaseUiTest {
                 // переход на страницу Make a Transfer
                 .navigateToTransfer()
                 // выбираем первый счет из списка счетов
-                .selectSourceAccount(senderAccount.getAccountNumber())
-                // заполняем Recipient Name и Recipient Account Number
-                .enterRecipientDetails(user.getUsername(), receiverAccount.getAccountNumber())
+                .selectSourceAccount(SessionStorage.getAccount(user, 0).getAccountNumber())
+                // заполняем Recipient Name и Recipient Account Number, берем второй по списку счет
+                .enterRecipientDetails(user.getUsername(),
+                        SessionStorage.getAccount(user, 1).getAccountNumber())
                 // заполняем сумму перевода
                 .enterAmount(transferAmount)
                 // нажимаем на чекбокс согласия Confirm details are correct
@@ -53,14 +59,18 @@ public class TransferringMoneyTest extends BaseUiTest {
     }
 
     @Test
+    @Browsers({"chrome"})
+    @Platform(Platform.Type.MOBILE)
+    @UserSession(value = 2, auth = 1) // создаем двух юзеров, и залогинимся один раз под отправителем
     public void AttemptToTransferAnAmountExceedingTheMaximumLimitOverUiTest() {
-        //  Готовим данные через api
-        CreateUserRequest user = AdminSteps.createUser();
-        CreateUserRequest user2 = AdminSteps.createUser();
-        var authSpec = specs.RequestSpecs.authAsUser(user.getUsername(), user.getPassword());
+        //  Достаем из хранилища двух пользователей
+        CreateUserRequest user = SessionStorage.getUser(1);
+        CreateUserRequest user2 = SessionStorage.getUser(2);
+        var authSpec = SessionStorage.getSteps(1).getUserSpec();
 
         // Создаем счет-отправитель
         CreateAccountResponse senderAccount = AccountSteps.createAccount(authSpec);
+        SessionStorage.saveAccount(user, senderAccount);
 
         // Расчет суммы перевода (> 10000) и деление её на 3 равные части
         double transferAmountOverLimit = RandomData.getTransferOverLimit();
@@ -70,19 +80,19 @@ public class TransferringMoneyTest extends BaseUiTest {
         for (int i = 0; i < 3; i++) {
             AccountSteps.topUpAccount(authSpec, senderAccount.getId(), chunk);
         }
-
-        // Создаем счет-получатель у второго пользователя (user2)
-        var authSpec2 = specs.RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword());
+        // из шагов берем спеку для второго юзера
+        var authSpec2 = SessionStorage.getSteps(2).getUserSpec();
+        // Создаем счет-получатель у второго пользователя
         CreateAccountResponse receiverAccount = AccountSteps.createAccount(authSpec2);
-
-        // Авторизуемся под первым пользователем (отправителем)
-        authAsUser(user);
+        SessionStorage.saveAccount(user2, receiverAccount);
 
         new UserDashboard()
                 .open()
                 .navigateToTransfer()
-                .selectSourceAccount(senderAccount.getAccountNumber())
-                .enterRecipientDetails(user2.getUsername(), receiverAccount.getAccountNumber())
+                .selectSourceAccount(SessionStorage.getAccount(user, 0).getAccountNumber())
+                .enterRecipientDetails(user2.getUsername(),
+                        SessionStorage.getAccount(user2, 0).getAccountNumber()
+                )
                 .enterAmount((int) transferAmountOverLimit)
                 .confirmCheckbox()
                 .clickSubmit();
@@ -96,28 +106,33 @@ public class TransferringMoneyTest extends BaseUiTest {
     }
 
     @Test
+    @Browsers({"chrome"})
+    @Platform(Platform.Type.DESKTOP)
+    @UserSession(value = 2, auth = 1) // создаем двух юзеров, и залогинимся один раз под отправителем
     public void AttemptToTransferAnAmountExceedingTheSenderIsBalanceUiTest() {
-        // Готовим данные через api
-        CreateUserRequest user = AdminSteps.createUser();
-        CreateUserRequest user2 = AdminSteps.createUser();
-        var authSpec = specs.RequestSpecs.authAsUser(user.getUsername(), user.getPassword());
+        // Достаем из хранилища обоих пользователей
+        CreateUserRequest user = SessionStorage.getUser(1);
+        CreateUserRequest user2 = SessionStorage.getUser(2);
+        // берем спеку для первого пользователя из списка шагов
+        var authSpec = SessionStorage.getSteps(1).getUserSpec();
 
         // Создаем счет № 1 - отправитель
         CreateAccountResponse senderAccount = AccountSteps.createAccount(authSpec);
+        SessionStorage.saveAccount(user, senderAccount);
 
         // Пополняем счет № 1 на случайную валидную сумму до 5000
         double initialAmount = RandomData.getAmount();
         AccountSteps.topUpAccount(authSpec, senderAccount.getId(), initialAmount);
 
+        // берем спеку для первого пользователя из списка шагов
+        var authSpec2 = SessionStorage.getSteps(2).getUserSpec();
         // Создаем счет № 2 - получатель (у второго пользователя)
-        var authSpec2 = specs.RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword());
         CreateAccountResponse receiverAccount = AccountSteps.createAccount(authSpec2);
+        // сохраняем счет второго пользователя в хранилище
+        SessionStorage.saveAccount(user2, receiverAccount);
 
         // Расчет невалидной суммы перевода (гарантированно больше доступного баланса)
         double invalidTransferAmount = initialAmount + RandomData.getAmount();
-
-        // авторизация через api
-        authAsUser(user);
 
         new UserDashboard()
                 // Переход по адресу /dashboard и автоматическая проверка "Welcome, noname!"
@@ -125,9 +140,10 @@ public class TransferringMoneyTest extends BaseUiTest {
                 // Переход на страницу Make a Transfer и автоматическое гашение алертов транзакций
                 .navigateToTransfer()
                 // Выбираем свой счет-отправитель
-                .selectSourceAccount(senderAccount.getAccountNumber())
+                .selectSourceAccount(SessionStorage.getAccount(user, 0).getAccountNumber())
                 // Заполняем данные получателя (user2)
-                .enterRecipientDetails(user2.getUsername(), receiverAccount.getAccountNumber())
+                .enterRecipientDetails(user2.getUsername(),
+                        SessionStorage.getAccount(user2, 0).getAccountNumber())
                 // Вводим сумму перевода, превышающую текущий баланс
                 .enterAmount((int) invalidTransferAmount)
                 // Кликаем по чекбоксу подтверждения

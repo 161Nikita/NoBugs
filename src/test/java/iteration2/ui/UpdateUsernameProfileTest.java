@@ -1,22 +1,18 @@
 package iteration2.ui;
 
+import common.annotations.UserSession;
 import generators.RandomData;
 import iteration2.ui.pages.BankAlert;
 import iteration2.ui.pages.UserDashboard;
-import models.CreateUserRequest;
 import org.junit.jupiter.api.Test;
-import requests.skelethon.steps.AdminSteps;
 
+@UserSession
 public class UpdateUsernameProfileTest extends BaseUiTest {
 
     @Test
     public void SuccessfulNameChangeToAValidFormatUiTest() {
-        // создаем юзера
-        CreateUserRequest user = AdminSteps.createUser();
         String randomName = RandomData.getUsername() + " " + RandomData.getUsername();
 
-        // авторизация
-        authAsUser(user);
         new UserDashboard()
                 // Переход по адресу /dashboard и автоматическая проверка "Welcome, noname!"
                 .open()
@@ -36,11 +32,6 @@ public class UpdateUsernameProfileTest extends BaseUiTest {
 
     @Test
     public void PasswordChangeAttemptUiTest() {
-        // создаем юзера
-        CreateUserRequest user = AdminSteps.createUser();
-
-        authAsUser(user);
-
         new UserDashboard()
                 // Переход по адресу /dashboard и автоматическая проверка "Welcome, noname!"
                 .open()
@@ -52,13 +43,6 @@ public class UpdateUsernameProfileTest extends BaseUiTest {
 
     @Test
     public void AttemptToSetANameConsistingOfOnlyOneWordUiTest() {
-
-        // создаем юзера
-        CreateUserRequest user = AdminSteps.createUser();
-
-        authAsUser(user);
-
-        // 3. UI-шаги через цепочку Page Object
         new UserDashboard()
                 // Переход по адресу /dashboard и автоматическая проверка "Welcome, noname!"
                 .open()

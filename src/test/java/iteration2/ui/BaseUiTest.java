@@ -2,16 +2,22 @@ package iteration2.ui;
 
 import com.codeborne.selenide.Configuration;
 import com.codeborne.selenide.Selenide;
+import common.storage.SessionStorage;
+import extensions.BrowserMatchExtension;
+import extensions.UserSessionExtension;
 import iteration2.api.BaseTest;
 import models.CreateUserRequest;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.openqa.selenium.remote.DesiredCapabilities;
 import specs.RequestSpecs;
 
 import java.util.Map;
 
 import static com.codeborne.selenide.Selenide.executeJavaScript;
-
+@ExtendWith(UserSessionExtension.class)
+@ExtendWith(BrowserMatchExtension.class)
 public class BaseUiTest extends BaseTest {
     @BeforeAll
     public static void setupSelenoid() {
@@ -32,7 +38,7 @@ public class BaseUiTest extends BaseTest {
         Configuration.browserCapabilities = capabilities;
     }
 
-    public void authAsUser(String username, String password) {
+    public static void authAsUser(String username, String password) {
         Selenide.open("/dashboard");
         // Получаем токен авторизации
         String userAuthHeader = RequestSpecs.getUserAuthHeader(username, password);
@@ -42,7 +48,7 @@ public class BaseUiTest extends BaseTest {
         Selenide.open("/dashboard");
     }
 
-    public void authAsUser(CreateUserRequest createUserRequest) {
+    public static void authAsUser(CreateUserRequest createUserRequest) {
         authAsUser(createUserRequest.getUsername(),createUserRequest.getPassword());
     }
 }

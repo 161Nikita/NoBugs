@@ -41,6 +41,11 @@ public enum Endpoint {
             "/accounts/transfer",
             UserTransferAccountRequest.class,
             UserTransferAccountResponse.class
+    ),
+    CUSTOMER_ACCOUNTS(
+            "/customer/accounts",
+            BaseModel.class,
+            CreateAccountResponse.class
     );
 
     private final String url;
