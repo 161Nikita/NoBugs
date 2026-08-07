@@ -7,6 +7,7 @@ import io.restassured.filter.log.ResponseLoggingFilter;
 import io.restassured.http.ContentType;
 import io.restassured.specification.RequestSpecification;
 import models.LoginUserRequest;
+import org.apache.http.HttpHeaders;
 import requests.skelethon.Endpoint;
 import requests.skelethon.requesters.CrudRequester;
 
@@ -15,7 +16,16 @@ import java.util.List;
 import java.util.Map;
 
 public class RequestSpecs {
-    private static Map<String,String> authHeaders = new HashMap<>(Map.of("admin", "Basic YWRtaW46YWRtaW4="));
+    // собираем токен админа из Config
+    private static final String ENCODED_ADMIN_CREDS = java.util.Base64.getEncoder().encodeToString(
+            (Config.getProperty("admin.login") + ":" + Config.getProperty("admin.password")).getBytes()
+    );
+
+    // Инициализируем карту токеном
+    private static final Map<String, String> authHeaders = new HashMap<>(Map.of(
+            "admin", "Basic " + ENCODED_ADMIN_CREDS
+    ));
+
     private RequestSpecs() {
     }
 
@@ -33,27 +43,26 @@ public class RequestSpecs {
 
     public static RequestSpecification adminSpec() {
         return defaultRequestBuilder()
-                .addHeader("Authorization", authHeaders.get("admin"))
+                .addHeader(HttpHeaders.AUTHORIZATION, authHeaders.get("admin"))
                 .build();
     }
 
     public static RequestSpecification authAsUser(String username, String password) {
         String userAuthHeader;
         if (!authHeaders.containsKey(username)) {
-            userAuthHeader =  new CrudRequester(
+            userAuthHeader = new CrudRequester(
                     RequestSpecs.unauthSpec(),
                     Endpoint.LOGIN,
                     ResponseSpecs.requestReturnsOK())
                     .post(LoginUserRequest.builder().username(username).password(password).build())
                     .extract()
-                    .header("Authorization");
+                    .header(HttpHeaders.AUTHORIZATION);
             authHeaders.put(username, userAuthHeader);
-        } else {userAuthHeader = authHeaders.get(username);
+        } else {
+            userAuthHeader = authHeaders.get(username);
         }
-            return defaultRequestBuilder()
-                    .addHeader("Authorization", userAuthHeader)
-                    .build();
-
+        return defaultRequestBuilder()
+                .addHeader(HttpHeaders.AUTHORIZATION, userAuthHeader)
+                .build();
     }
-
 }

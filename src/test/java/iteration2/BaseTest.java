@@ -1,6 +1,7 @@
 package iteration2;
 
 import models.CreateUserRequest;
+import models.CreateUserResponse;
 import models.LoginUserRequest;
 import org.assertj.core.api.SoftAssertions;
 import org.junit.jupiter.api.AfterEach;
@@ -13,27 +14,39 @@ import specs.ResponseSpecs;
 
 public class BaseTest {
     protected SoftAssertions softly;
+    protected long testUserId = -1;
 
     @BeforeEach
     public void setupTest() {
         this.softly = new SoftAssertions();
+        this.testUserId = -1;
     }
 
     @AfterEach
     public void afterTest() {
-        softly.assertAll();
+        try {
+            if (testUserId != -1) {
+                AdminSteps.deleteUser(testUserId);
+            }
+        } catch (Exception e) {
+            System.err.println("Не удалось очистить данные после теста: " + e.getMessage());
+        } finally {
+            softly.assertAll();
+        }
     }
 
-
     protected CreateUserRequest createAndAuthorizeUser() {
-        CreateUserRequest userRequest = AdminSteps.createUser();
+
+        CreateUserRequest userRequest = generators.RandomModelGenerator.generate(CreateUserRequest.class);
+        CreateUserResponse userResponse = AdminSteps.createUserFromRequest(userRequest);
+
+        this.testUserId = userResponse.getId();
 
         LoginUserRequest loginUserRequest = LoginUserRequest.builder()
                 .username(userRequest.getUsername())
                 .password(userRequest.getPassword())
                 .build();
 
-        // Получаем токен юзера
         new CrudRequester(
                 RequestSpecs.unauthSpec(),
                 Endpoint.LOGIN,
