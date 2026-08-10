@@ -1,9 +1,7 @@
 package iteration2.ui;
 
-import common.annotations.Browsers;
 import common.annotations.UserSession;
 import common.storage.SessionStorage;
-import extensions.Platform;
 import generators.RandomData;
 import iteration2.ui.pages.BankAlert;
 import iteration2.ui.pages.UserDashboard;
