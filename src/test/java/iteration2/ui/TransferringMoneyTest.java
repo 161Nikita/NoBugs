@@ -1,9 +1,9 @@
 package iteration2.ui;
 
-import com.codeborne.selenide.Selenide;
 import common.annotations.Browsers;
 import common.annotations.UserSession;
 import common.storage.SessionStorage;
+import common.utils.RetryUtils;
 import extensions.Platform;
 import generators.RandomData;
 import iteration2.ui.pages.TransferPage;
@@ -97,8 +97,21 @@ public class TransferringMoneyTest extends BaseUiTest {
                 .confirmCheckbox()
                 .clickSubmit();
 
-        // Ждем 1 секунда
-        Selenide.sleep(1000);
+        // Замена хардкода sleep(1000)
+        RetryUtils.retry(
+                () -> {
+                    try {
+
+                        new TransferPage().verifyTransferFormIsStillActive();
+                        return true;
+                    } catch (Throwable e) {
+                        return false;
+                    }
+                },
+                result -> result == true,
+                3,// Количество попыток
+                500// Задержка между попытками в мс
+        );
 
         // !БАГ ФРОНТЕНДА! — Окно с ошибкой лимита не всплывает, но система блокирует перевод.
         // Кнопка "Send Transfer" всё ещё отображается на экране
@@ -151,11 +164,20 @@ public class TransferringMoneyTest extends BaseUiTest {
                 // Отправляем перевод
                 .clickSubmit();
 
-        // Ждем 1 секунду на обработку запроса
-        com.codeborne.selenide.Selenide.sleep(1000);
+        // Замена хардкода sleep(1000)
+        RetryUtils.retry(
+                () -> {
+                    try {
 
-        // !БАГ ФРОНТЕНДА! - Окно с ошибкой лимита не всплывает, но система блокирует перевод.
-        // Проверяем, что мы по-прежнему на форме, кнопка отправки видна и активна (перевод не ушел)
-        new TransferPage().verifyTransferFormIsStillActive();
+                        new TransferPage().verifyTransferFormIsStillActive();
+                        return true;
+                    } catch (Throwable e) {
+                        return false;
+                    }
+                },
+                result -> result == true,
+                3,// Количество попыток
+                500// Задержка между попытками в мс
+        );
     }
 }
