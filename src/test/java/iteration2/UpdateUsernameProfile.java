@@ -2,12 +2,8 @@ package iteration2;
 
 import constants.ErrorMessages;
 import generators.RandomData;
-import models.CreateUserRequest;
-import models.LoginUserRequest;
-import models.UpdateProfileRequest;
-import models.UserRole;
+import models.*;
 import org.apache.http.HttpHeaders;
-import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import requests.AdminCreateUserRequester;
 import requests.LoginUserRequester;
@@ -57,11 +53,16 @@ public class UpdateUsernameProfile extends BaseTest {
                 .name(randomName)
                 .build());
         // Проверяем методом гет, что имя действительно записалось в бд. !БАГ! имя по прежнему null
-        new UserGetProfileRequester(
+        CreateUserResponse profile = new UserGetProfileRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .get()
-                .body("name", Matchers.equalTo(randomName));
+                .extract()
+                .as(
+                        CreateUserResponse.class
+                );
+        softly.assertThat(profile.getName()).as("Проверка обновленного имени пользователя")
+                .isEqualTo(randomName);
     }
 
     @Test
@@ -77,11 +78,14 @@ public class UpdateUsernameProfile extends BaseTest {
                 .password(user.getPassword() + "1") // Передаем измененный пароль
                 .build());
         // Проверка с помощью гет запроса, что из-за ошибки запроса имя пользователя не изменилось (осталось null)
-        new UserGetProfileRequester(
+        CreateUserResponse profile = new UserGetProfileRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .get()
-                .body("name", Matchers.nullValue());
+                .extract()
+                .as(CreateUserResponse.class);
+        softly.assertThat(profile.getName()).as("Имя должно остаться null при ошибке запроса")
+                .isNull();
     }
 
     @Test
@@ -96,10 +100,12 @@ public class UpdateUsernameProfile extends BaseTest {
                 .name(RandomData.getUsername())
                 .build());
         // Проверка с помощью гет запроса, что поле name осталось null
-        new UserGetProfileRequester(
+        CreateUserResponse profile = new UserGetProfileRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .get()
-                .body("name", Matchers.nullValue());
+                .extract()
+                .as(CreateUserResponse.class);
+        softly.assertThat(profile.getName()).as("Поле name должно остаться null").isNull();
     }
 }

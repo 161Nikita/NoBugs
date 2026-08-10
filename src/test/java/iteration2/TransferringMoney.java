@@ -1,14 +1,16 @@
 package iteration2;
 
 import constants.ErrorMessages;
+import generators.MoneyHelper;
 import generators.RandomData;
 import models.*;
 import org.apache.http.HttpHeaders;
-import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
 import requests.*;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
+
+import java.util.Arrays;
 
 
 public class TransferringMoney extends BaseTest {
@@ -71,7 +73,7 @@ public class TransferringMoney extends BaseTest {
                 .getId();
 
         // пополнение своего счета № 2
-        double transferAmount = initialAmount / 2;
+        double transferAmount = MoneyHelper.round(initialAmount / 2);
         UserTransferAccountResponse response = new UserTransferAccountRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK())
@@ -94,15 +96,36 @@ public class TransferringMoney extends BaseTest {
                 .isEqualTo(transferAmount);
 
         // Проверка с помощью гет, что произошло фактическое изменение балансов
-        float expectedSenderBalance = (float) (Math.round((initialAmount - transferAmount) * 100.0) / 100.0);
-        float expectedReceiverBalance = (float) (Math.round(transferAmount * 100.0) / 100.0);
+        double expectedSenderBalance = MoneyHelper.round(initialAmount - transferAmount);
+        double expectedReceiverBalance = MoneyHelper.round(transferAmount);
 
-        new UserGetAccountsRequester(
+        CreateAccountResponse[] accounts = new UserGetAccountsRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .get()
-                .body("find { it.id == " + senderAccountId + " }.balance", Matchers.equalTo(expectedSenderBalance))
-                .body("find { it.id == " + receiverAccountId + " }.balance", Matchers.equalTo(expectedReceiverBalance));
+                .extract()
+                .as(CreateAccountResponse[].class);
+
+        // Находим аккаунт отправителя в массиве через Stream API
+        CreateAccountResponse senderAccount = Arrays.stream(accounts)
+                .filter(acc -> acc.getId() == senderAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Аккаунт отправителя не найден"));
+
+        // Находим аккаунт получателя в массиве через Stream API
+        CreateAccountResponse receiverAccount = Arrays.stream(accounts)
+                .filter(acc -> acc.getId() == receiverAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Аккаунт получателя не найден"));
+
+        // Делаем чистые проверки через softly без использования RestAssured .body()
+        softly.assertThat(senderAccount.getBalance())
+                .as("Проверка итогового баланса отправителя")
+                .isEqualTo(expectedSenderBalance);
+
+        softly.assertThat(receiverAccount.getBalance())
+                .as("Проверка итогового баланса получателя")
+                .isEqualTo(expectedReceiverBalance);
     }
 
     @Test
@@ -118,23 +141,25 @@ public class TransferringMoney extends BaseTest {
                 .getId();
         // Получаем сумму перевода (> 10000) и делим её на 3 равные части
         double transferAmountOverLimit = RandomData.getTransferOverLimit();
-        double chunk = transferAmountOverLimit / 3.0;
+        double chunk = MoneyHelper.round(transferAmountOverLimit / 3.0);
         // переменная для хранения баланса
 
         // пополнение своего счета № 1
         UserTopUpAccountRequester topUp = new UserTopUpAccountRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK());
-        // создаем массив из 1 элемента
-        float[] actualSenderBalance = new float[1];
+        final UserTopUpAccountResponse[] topUpResponseContainer = new UserTopUpAccountResponse[1];
 
         // вызываем метод repeat, внутри извлекаем баланс в массив
         repeat(3, () -> {
-            actualSenderBalance[0] = topUp.post(UserTopUpAccountRequest.builder().accountId(senderAccountId)
+            topUpResponseContainer[0] = topUp.post(UserTopUpAccountRequest.builder()
+                            .accountId(senderAccountId)
                             .amount(chunk).build())
                     .extract()
-                    .path("balance");
+                    .as(UserTopUpAccountResponse.class);
         });
+
+        double actualSenderBalance = topUpResponseContainer[0].getBalance();
 
         // создаем счет № 2 - получатель
         long receiverAccountId = new CreateAccountRequester(
@@ -154,18 +179,37 @@ public class TransferringMoney extends BaseTest {
                         .build());
 
         // Проверяем через гет, что после ошибки, балансы не изменились
-        new UserGetAccountsRequester(
+        CreateAccountResponse[] senderAccounts = new UserGetAccountsRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .get()
-                .body("find { it.id == " + senderAccountId + " }.balance",
-                        Matchers.equalTo((float) (Math.round(actualSenderBalance[0] * 100.0) / 100.0)));
+                .extract()
+                .as(CreateAccountResponse[].class);
 
-        new UserGetAccountsRequester(
+        CreateAccountResponse senderAccount = Arrays.stream(senderAccounts)
+                .filter(acc -> acc.getId() == senderAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Аккаунт отправителя не найден"));
+
+        softly.assertThat(senderAccount.getBalance())
+                .as("Баланс отправителя не должен измениться после неудачного перевода")
+                .isEqualTo(MoneyHelper.round(actualSenderBalance));
+
+        CreateAccountResponse[] receiverAccounts = new UserGetAccountsRequester(
                 RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .get()
-                .body("find { it.id == " + receiverAccountId + " }.balance", Matchers.equalTo(0.0f));
+                .extract()
+                .as(CreateAccountResponse[].class);
+
+        CreateAccountResponse receiverAccount = Arrays.stream(receiverAccounts)
+                .filter(acc -> acc.getId() == receiverAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Аккаунт получателя не найден"));
+
+        softly.assertThat(receiverAccount.getBalance())
+                .as("Баланс получателя должен остаться нулевым")
+                .isEqualTo(0.0);
     }
 
     @Test
@@ -208,20 +252,41 @@ public class TransferringMoney extends BaseTest {
                         .amount(invalidTransferAmount)
                         .build());
         // Округляем исходный баланс до копеек
-        float expectedSenderBalance = (float) (Math.round(initialAmount * 100.0) / 100.0);
+        double expectedSenderBalance = MoneyHelper.round(initialAmount);
         // Проверяем через GET-реквестер, что после ошибки нехватки средств балансы НЕ изменились
-        new UserGetAccountsRequester(
+        CreateAccountResponse[] senderAccounts = new UserGetAccountsRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .get()
-                .body("find { it.id == " + senderAccountId + " }.balance", Matchers.equalTo(expectedSenderBalance));
+                .extract()
+                .as(CreateAccountResponse[].class);
 
-        new UserGetAccountsRequester(
+        CreateAccountResponse senderAccount = Arrays.stream(senderAccounts)
+                .filter(acc -> acc.getId() == senderAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Аккаунт отправителя не найден"));
+
+        softly.assertThat(senderAccount.getBalance())
+                .as("После ошибки нехватки средств баланс отправителя не должен измениться")
+                .isEqualTo(expectedSenderBalance);
+
+        CreateAccountResponse[] receiverAccounts = new UserGetAccountsRequester(
                 RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .get()
-                .body("find { it.id == " + receiverAccountId + " }.balance", Matchers.equalTo(0.0f));
+                .extract()
+                .as(CreateAccountResponse[].class);
+
+        CreateAccountResponse receiverAccount = Arrays.stream(receiverAccounts)
+                .filter(acc -> acc.getId() == receiverAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Аккаунт получателя не найден"));
+
+        softly.assertThat(receiverAccount.getBalance())
+                .as("Баланс получателя должен остаться нулевым")
+                .isEqualTo(0.0);
     }
+
     private void repeat(int times, Runnable action) {
         for (int i = 0; i < times; i++) {
             action.run();
