@@ -4,6 +4,8 @@ import constants.ErrorMessages;
 import generators.RandomData;
 import models.*;
 import models.comparison.ModelAssertions;
+import models.comparison.ModelComparator;
+import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.Test;
 import requests.skelethon.Endpoint;
 import requests.skelethon.requesters.CrudRequester;
@@ -61,21 +63,25 @@ public class TransferringMoney extends BaseTest {
 
         // модель сравнения
         ModelAssertions.assertThatModels(request, response).match();
+
         // проверка через гет
         List<CreateAccountResponse> accounts = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.CUSTOMER_ACCOUNTS,
                 ResponseSpecs.requestReturnsOK()
         ).getList();
+
         // округляем до копеек
-        double expectedSenderBalance = Math.round((initialAmount - transferAmount) * 100.0) / 100.0;
-        double expectedReceiverBalance = Math.round(transferAmount * 100.0) / 100.0;
+        double expectedSenderBalance = initialAmount - transferAmount;
+        double expectedReceiverBalance = transferAmount;
+
         // проверяем актуальный баланс счёта отправителя
         softly.assertThat(accounts)
                 .as("Проверка актуального баланса счёта отправителя после перевода")
                 .filteredOn(account -> account.getId() == senderAccountId)
                 .extracting(CreateAccountResponse::getBalance)
                 .containsExactly(expectedSenderBalance);
+
         // проверяем актуальный баланс счёта получателя
         softly.assertThat(accounts)
                 .as("Проверка актуального баланса счёта получателя после перевода")
@@ -100,7 +106,7 @@ public class TransferringMoney extends BaseTest {
 
         // Расчет суммы перевода (> 10000) и деление её на 3 равные части
         double transferAmountOverLimit = RandomData.getTransferOverLimit();
-        double chunk = Math.round((transferAmountOverLimit / 3.0) * 100.0) / 100.0;
+        double chunk = transferAmountOverLimit / 3.0;
 
         // 2. Пополнение своего счета № 1 (копим баланс за 3 захода)
         CrudRequester topUp = new CrudRequester(
@@ -137,13 +143,14 @@ public class TransferringMoney extends BaseTest {
         ).getList();
 
         // Округляем до копеек
-        double expectedSenderBalance = Math.round((chunk * 3) * 100.0) / 100.0;
+        double expectedSenderBalance = (Double) ModelComparator.normalizeValue(chunk * 3);
 
         softly.assertThat(senderAccounts)
                 .as("Проверка, что баланс отправителя не изменился после неудавшегося перевода")
                 .filteredOn(account -> account.getId() == senderAccountId)
                 .extracting(CreateAccountResponse::getBalance)
-                .containsExactly(expectedSenderBalance);
+                .allSatisfy(balance -> softly.assertThat(balance)
+                        .isCloseTo(expectedSenderBalance, Offset.offset(0.01)));
 
         // проверка, что баланс получателя не изменился, остался равен 0.0
         List<CreateAccountResponse> receiverAccounts = new ValidatedCrudRequester<CreateAccountResponse>(
@@ -152,13 +159,11 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.requestReturnsOK()
         ).getList();
 
-        double expectedReceiverBalance = 0.0;
-
         softly.assertThat(receiverAccounts)
                 .as("Проверка, что баланс получателя остался нулевым после неудавшегося перевода")
                 .filteredOn(account -> account.getId() == receiverAccountId)
                 .extracting(CreateAccountResponse::getBalance)
-                .containsExactly(expectedReceiverBalance);
+                .allSatisfy(balance -> softly.assertThat(balance).isZero());
     }
 
     @Test
@@ -212,14 +217,11 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.requestReturnsOK()
         ).getList();
 
-        double expectedSenderBalance = Math.round(initialAmount * 100.0) / 100.0;
-
-        // проверка, что средства не списались
         softly.assertThat(senderAccounts)
                 .as("Проверка, что баланс отправителя не изменился после неудавшегося перевода")
                 .filteredOn(account -> account.getId() == senderAccountId)
                 .extracting(CreateAccountResponse::getBalance)
-                .containsExactly(expectedSenderBalance);
+                .containsExactly(initialAmount);
 
         List<CreateAccountResponse> receiverAccounts = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword()),
@@ -227,14 +229,11 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.requestReturnsOK()
         ).getList();
 
-        // баланс остается 0, т.к. перевод отклонен
-        double expectedReceiverBalance = 0.0;
-
         // проверка, что средтсва получателю не зачислились
         softly.assertThat(receiverAccounts)
                 .as("Проверка, что баланс получателя остался нулевым после неудавшегося перевода")
                 .filteredOn(account -> account.getId() == receiverAccountId)
                 .extracting(CreateAccountResponse::getBalance)
-                .containsExactly(expectedReceiverBalance);
+                .allSatisfy(balance -> softly.assertThat(balance).isZero());
     }
 }

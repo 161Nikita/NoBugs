@@ -5,6 +5,7 @@ import generators.RandomData;
 import models.CreateAccountResponse;
 import models.CreateUserRequest;
 import models.UserTopUpAccountRequest;
+import models.comparison.ModelComparator;
 import org.junit.jupiter.api.Test;
 import requests.skelethon.Endpoint;
 import requests.skelethon.requesters.CrudRequester;
@@ -44,7 +45,7 @@ public class UserDeposit extends BaseTest {
         ).getList();
 
         // Округляем отправленную сумму до копеек
-        double expectedBalance = Math.round(depositAmount * 100.0) / 100.0;
+        double expectedBalance = (Double) ModelComparator.normalizeValue(depositAmount);
 
         // проверка коллекции
         softly.assertThat(accounts)
@@ -87,7 +88,7 @@ public class UserDeposit extends BaseTest {
                 .as("Проверка, что после отклонения операции лимита баланс остался нулевым")
                 .filteredOn(account -> account.getId() == accountId)
                 .extracting(CreateAccountResponse::getBalance)
-                .containsExactly(0.0);
+                .allSatisfy(balance -> softly.assertThat(balance).isZero());
     }
 
     @Test

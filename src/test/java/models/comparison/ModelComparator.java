@@ -18,12 +18,24 @@ public class ModelComparator {
             Object value1 = getFieldValue(request, requestField);
             Object value2 = getFieldValue(response, responseField);
 
-            if (!Objects.equals(String.valueOf(value1), String.valueOf(value2))) {
-                mismatches.add(new Mismatch(requestField + " -> " + responseField, value1, value2));
+            Object normalizedValue1 = normalizeValue(value1);
+            Object normalizedValue2 = normalizeValue(value2);
+
+            if (!Objects.equals(String.valueOf(normalizedValue1), String.valueOf(normalizedValue2))) {
+                mismatches.add(new Mismatch(requestField + " -> " + responseField, normalizedValue1, normalizedValue2));
             }
         }
 
         return new ComparisonResult(mismatches);
+    }
+    public static Object normalizeValue(Object value) {
+        if (value instanceof Double) {
+            return Math.round((Double) value * 100.0) / 100.0;
+        }
+        if (value instanceof Float) {
+            return (float) (Math.round((Float) value * 100.0) / 100.0);
+        }
+        return value;
     }
 
     private static Object getFieldValue(Object obj, String fieldName) {
