@@ -1,6 +1,6 @@
 package iteration2.ui;
 
-import com.codeborne.selenide.Selenide;
+import common.utils.RetryUtils;
 import generators.RandomData;
 import iteration2.ui.pages.TransferPage;
 import iteration2.ui.pages.UserDashboard;
@@ -67,9 +67,7 @@ public class TransferringMoneyTest extends BaseUiTest {
         double chunk = transferAmountOverLimit / 3.0;
 
         // Пополнение счета-отправителя циклом за 3 захода (обходим лимит депозита в 5000)
-        for (int i = 0; i < 3; i++) {
-            AccountSteps.topUpAccount(authSpec, senderAccount.getId(), chunk);
-        }
+        repeat(3, () -> AccountSteps.topUpAccount(authSpec, senderAccount.getId(), chunk));
 
         // Создаем счет-получатель у второго пользователя (user2)
         var authSpec2 = specs.RequestSpecs.authAsUser(user2.getUsername(), user2.getPassword());
@@ -87,12 +85,22 @@ public class TransferringMoneyTest extends BaseUiTest {
                 .confirmCheckbox()
                 .clickSubmit();
 
-        // Ждем 1 секунда
-        Selenide.sleep(1000);
+        TransferPage transferPage = new TransferPage();
 
-        // !БАГ ФРОНТЕНДА! — Окно с ошибкой лимита не всплывает, но система блокирует перевод.
-        // Кнопка "Send Transfer" всё ещё отображается на экране
-        new TransferPage().verifyTransferFormIsStillActive();
+        RetryUtils.retry(
+                () -> {
+                    try {
+
+                        transferPage.verifyTransferFormIsStillActive();
+                        return true;
+                    } catch (Throwable e) {
+                        return false;
+                    }
+                },
+                success -> success,
+                3,
+                500
+        );
     }
 
     @Test
@@ -135,11 +143,26 @@ public class TransferringMoneyTest extends BaseUiTest {
                 // Отправляем перевод
                 .clickSubmit();
 
-        // Ждем 1 секунду на обработку запроса
-        com.codeborne.selenide.Selenide.sleep(1000);
+        TransferPage transferPage = new TransferPage();
 
-        // !БАГ ФРОНТЕНДА! - Окно с ошибкой лимита не всплывает, но система блокирует перевод.
-        // Проверяем, что мы по-прежнему на форме, кнопка отправки видна и активна (перевод не ушел)
-        new TransferPage().verifyTransferFormIsStillActive();
+        RetryUtils.retry(
+                () -> {
+                    try {
+                        transferPage.verifyTransferFormIsStillActive();
+                        return true;
+                    } catch (Throwable e) {
+                        return false;
+                    }
+                },
+                success -> success,
+                3,
+                500
+        );
+    }
+
+    private void repeat(int times, Runnable action) {
+        for (int i = 0; i < times; i++) {
+            action.run();
+        }
     }
 }

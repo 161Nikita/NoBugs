@@ -1,23 +1,12 @@
 package iteration2.ui;
 
-import com.codeborne.selenide.Condition;
-import com.codeborne.selenide.Selectors;
-import com.codeborne.selenide.Selenide;
 import generators.RandomData;
 import iteration2.ui.pages.BankAlert;
 import iteration2.ui.pages.UserDashboard;
 import models.CreateUserRequest;
-import models.LoginUserRequest;
 import org.junit.jupiter.api.Test;
-import org.openqa.selenium.Alert;
-import requests.skelethon.Endpoint;
-import requests.skelethon.requesters.CrudRequester;
+import requests.skelethon.steps.AccountSteps;
 import requests.skelethon.steps.AdminSteps;
-import specs.RequestSpecs;
-import specs.ResponseSpecs;
-
-import static com.codeborne.selenide.Selenide.*;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class UserDepositTest extends BaseUiTest {
 
@@ -27,7 +16,7 @@ public class UserDepositTest extends BaseUiTest {
         // создаем юзера
         CreateUserRequest user = AdminSteps.createUser();
         // создаем счет
-        requests.skelethon.steps.AccountSteps.createAccount(
+        AccountSteps.createAccount(
                 specs.RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
         );
         // авторизация
