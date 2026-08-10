@@ -2,14 +2,13 @@ package iteration2;
 
 import constants.ErrorMessages;
 import generators.RandomData;
-import models.CreateUserRequest;
-import models.LoginUserRequest;
-import models.UpdateProfileRequest;
-import models.UserRole;
+import models.*;
+import org.apache.http.HttpHeaders;
 import org.junit.jupiter.api.Test;
 import requests.AdminCreateUserRequester;
 import requests.LoginUserRequester;
 import requests.UpdateProfileRequester;
+import requests.UserGetProfileRequester;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
 
@@ -37,7 +36,7 @@ public class UpdateUsernameProfile extends BaseTest {
                 ResponseSpecs.requestReturnsOK())
                 .post(loginUserRequest)
                 .extract()
-                .header("Authorization");
+                .header(HttpHeaders.AUTHORIZATION);
 
         return userRequest;
     }
@@ -45,14 +44,25 @@ public class UpdateUsernameProfile extends BaseTest {
     @Test
     public void SuccessfulNameChangeToAValidFormat() {
         CreateUserRequest user = createAndAuthorizeUser();
-
+        String randomName = RandomData.getUsername() + " " + RandomData.getUsername();
         // Обновляем имя пользователя на валидное (Имя Фамилия)
         new UpdateProfileRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK()
         ).put(UpdateProfileRequest.builder()
-                .name("Nikita Krapivin")
+                .name(randomName)
                 .build());
+        // Проверяем методом гет, что имя действительно записалось в бд. !БАГ! имя по прежнему null
+        CreateUserResponse profile = new UserGetProfileRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .extract()
+                .as(
+                        CreateUserResponse.class
+                );
+        softly.assertThat(profile.getName()).as("Проверка обновленного имени пользователя")
+                .isEqualTo(randomName);
     }
 
     @Test
@@ -64,9 +74,18 @@ public class UpdateUsernameProfile extends BaseTest {
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsBadRequest(ErrorMessages.PASSWORD_CHANGE_NOT_ALLOWED)
         ).put(UpdateProfileRequest.builder()
-                .name("Nikita Krapivin")
+                .name(RandomData.getUsername() + " " + RandomData.getUsername())
                 .password(user.getPassword() + "1") // Передаем измененный пароль
                 .build());
+        // Проверка с помощью гет запроса, что из-за ошибки запроса имя пользователя не изменилось (осталось null)
+        CreateUserResponse profile = new UserGetProfileRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .extract()
+                .as(CreateUserResponse.class);
+        softly.assertThat(profile.getName()).as("Имя должно остаться null при ошибке запроса")
+                .isNull();
     }
 
     @Test
@@ -78,7 +97,15 @@ public class UpdateUsernameProfile extends BaseTest {
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsBadRequest(ErrorMessages.INVALID_NAME_FORMAT)
         ).put(UpdateProfileRequest.builder()
-                .name("Krapivin")
+                .name(RandomData.getUsername())
                 .build());
+        // Проверка с помощью гет запроса, что поле name осталось null
+        CreateUserResponse profile = new UserGetProfileRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .extract()
+                .as(CreateUserResponse.class);
+        softly.assertThat(profile.getName()).as("Поле name должно остаться null").isNull();
     }
 }

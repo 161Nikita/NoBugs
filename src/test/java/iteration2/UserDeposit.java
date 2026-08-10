@@ -1,28 +1,19 @@
 package iteration2;
 
 import constants.ErrorMessages;
+import generators.MoneyHelper;
 import generators.RandomData;
-import io.restassured.http.ContentType;
-import models.CreateUserRequest;
-import models.LoginUserRequest;
-import models.UserRole;
-import models.UserTopUpAccountRequest;
-import org.apache.http.HttpStatus;
-import org.hamcrest.Matchers;
+import models.*;
+import org.apache.http.HttpHeaders;
 import org.junit.jupiter.api.Test;
-import requests.AdminCreateUserRequester;
-import requests.CreateAccountRequester;
-import requests.LoginUserRequester;
-import requests.UserTopUpAccountRequester;
+import requests.*;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
 
-import java.util.Random;
-
-import static io.restassured.RestAssured.given;
+import java.util.Arrays;
 
 
-public class UserDeposit {
+public class UserDeposit extends BaseTest {
 
     private CreateUserRequest createAndAuthorizeUser() {
 
@@ -49,7 +40,7 @@ public class UserDeposit {
                 ResponseSpecs.requestReturnsOK())
                 .post(loginUserRequest)
                 .extract()
-                .header("Authorization");
+                .header(HttpHeaders.AUTHORIZATION);
 
         return userRequest;
     }
@@ -67,13 +58,37 @@ public class UserDeposit {
                 .getId();
 
         // пополнение своего счета
-        new UserTopUpAccountRequester(
+        UserTopUpAccountResponse topUpResponse = new UserTopUpAccountRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 ResponseSpecs.requestReturnsOK())
                 .post(UserTopUpAccountRequest.builder()
                         .accountId(accountId)
                         .amount(RandomData.getAmount())
-                        .build());
+                        .build())
+                .extract()
+                .as(UserTopUpAccountResponse.class);
+        double actualDepositedAmount = topUpResponse.getDepositAmount();
+
+        // Проверяем баланс через get
+        CreateAccountResponse[] accounts = new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .extract()
+                .as(CreateAccountResponse[].class);
+
+        // Поиск аккаунта
+        CreateAccountResponse userAccount = Arrays.stream(accounts)
+                .filter(acc -> acc.getId() == accountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Аккаунт с ID " + accountId + " не найден"));
+
+        double expectedBalance = MoneyHelper.round(actualDepositedAmount);
+
+        // Проверка через AssertJ
+        softly.assertThat(userAccount.getBalance())
+                .as("Проверка баланса после пополнения")
+                .isEqualTo(expectedBalance);
     }
 
     @Test
@@ -97,6 +112,22 @@ public class UserDeposit {
                         .accountId(accountId)
                         .amount(RandomData.getAmountOverLimit())
                         .build());
+        // Проверяем баланс через get
+        CreateAccountResponse[] accounts = new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .extract()
+                .as(CreateAccountResponse[].class);
+
+        CreateAccountResponse userAccount = Arrays.stream(accounts)
+                .filter(acc -> acc.getId() == accountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Аккаунт с ID " + accountId + " не найден"));
+
+        softly.assertThat(userAccount.getBalance())
+                .as("Баланс не должен измениться при ошибке лимита")
+                .isZero();
     }
 
     @Test
@@ -113,5 +144,16 @@ public class UserDeposit {
                         .accountId(RandomData.getNonExistentAccountId())
                         .amount(RandomData.getAmount())
                         .build());
+        // Проверяем что у нашего юзера по-прежнему нет счетов
+        CreateAccountResponse[] accounts = new UserGetAccountsRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                ResponseSpecs.requestReturnsOK())
+                .get()
+                .extract()
+                .as(CreateAccountResponse[].class);
+
+        softly.assertThat(accounts.length)
+                .as("У пользователя не должно быть открытых счетов")
+                .isZero();
     }
 }
