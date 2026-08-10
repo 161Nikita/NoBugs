@@ -29,6 +29,7 @@ public class BaseUiTest extends BaseTest {
         Configuration.browserVersion = configs.Config.getProperty("browserVersion");
 
         Configuration.browserSize = configs.Config.getProperty("browserSize");
+        Configuration.headless = true;
 
         DesiredCapabilities capabilities = new DesiredCapabilities();
         capabilities.setCapability("selenoid:options", Map.of(

@@ -1,0 +1,120 @@
+#Анализ распределения тестов между воркерами:
+
+Тесты UI
+
+* Thread ForkJoinPool-1-worker-11
+  o Thread ForkJoinPool-1-worker-11: Test started iteration2.ui.SuccessfulTransferOfFundsBetweenYourOwnAccountsUITest()
+  o Thread ForkJoinPool-1-worker-11: Test finished iteration2.ui.SuccessfulTransferOfFundsBetweenYourOwnAccountsUITest(), test duration 2005 ms
+
+* Thread ForkJoinPool-1-worker-4
+  o Thread ForkJoinPool-1-worker-4: Test started iteration2.ui.AttemptToTopUpByAnAmountExceedingTheLimitTest()
+  o Thread ForkJoinPool-1-worker-4: Test finished iteration2.ui.AttemptToTopUpByAnAmountExceedingTheLimitTest(), test duration 971 ms
+
+* Thread ForkJoinPool-1-worker-9
+  o Thread ForkJoinPool-1-worker-9: Test started iteration2.ui.SuccessfulNameChangeToAValidFormatUiTest()
+  o Thread ForkJoinPool-1-worker-9: Test finished iteration2.ui.SuccessfulNameChangeToAValidFormatUiTest(), test duration 7213 ms
+
+* Thread ForkJoinPool-1-worker-5
+  o Thread ForkJoinPool-1-worker-5: Test started iteration2.ui.AttemptToTransferAnAmountExceedingTheMaximumLimitOverUiTest()
+  o Thread ForkJoinPool-1-worker-5: Test finished iteration2.ui.AttemptToTransferAnAmountExceedingTheMaximumLimitOverUiTest(), test duration 3802 ms
+
+* Thread ForkJoinPool-1-worker-8
+  o Thread ForkJoinPool-1-worker-8: Test started iteration2.ui.AttemptToTransferAnAmountExceedingTheSenderIsBalanceUiTest()
+  o Thread ForkJoinPool-1-worker-8: Test finished iteration2.ui.AttemptToTransferAnAmountExceedingTheSenderIsBalanceUiTest(), test duration 3454 ms
+
+* Thread ForkJoinPool-1-worker-6
+  o Thread ForkJoinPool-1-worker-6: Test started iteration2.ui.AttemptToSetANameConsistingOfOnlyOneWordUiTest()
+  o Thread ForkJoinPool-1-worker-6: Test finished iteration2.ui.AttemptToSetANameConsistingOfOnlyOneWordUiTest(), test duration 2670 ms
+
+* Thread ForkJoinPool-1-worker-1
+  o Thread ForkJoinPool-1-worker-1: Test started iteration2.ui.depositTopUpTest()
+  o Thread ForkJoinPool-1-worker-1: Test finished iteration2.ui.depositTopUpTest(), test duration 2416 ms
+
+* Thread ForkJoinPool-1-worker-7
+  o Thread ForkJoinPool-1-worker-7: Test started iteration2.ui.PasswordChangeAttemptUiTest()
+  o Thread ForkJoinPool-1-worker-7: Test finished iteration2.ui.PasswordChangeAttemptUiTest(), test duration 1418 ms
+
+Тесты API
+
+* Thread ForkJoinPool-1-worker-2
+  o Thread ForkJoinPool-1-worker-2: Test started iteration2.api.AttemptToTransferAnAmountExceedingTheSenderIsBalance()
+  o Thread ForkJoinPool-1-worker-2: Test finished iteration2.api.AttemptToTransferAnAmountExceedingTheSenderIsBalance(), test duration 3283 ms
+  o Thread ForkJoinPool-1-worker-2: Test started iteration2.api.AttemptToTransferAnAmountExceedingTheMaximumLimitOverTest()
+  o Thread ForkJoinPool-1-worker-2: Test finished iteration2.api.AttemptToTransferAnAmountExceedingTheMaximumLimitOverTest(), test duration 1676 ms
+
+* Thread ForkJoinPool-1-worker-3
+  o Thread ForkJoinPool-1-worker-3: Test started iteration2.api.AttemptToSetANameConsistingOfOnlyOneWord()
+  o Thread ForkJoinPool-1-worker-3: Test finished iteration2.api.AttemptToSetANameConsistingOfOnlyOneWord(), test duration 3144 ms
+  o Thread ForkJoinPool-1-worker-3: Test started iteration2.api.PasswordChangeAttempt()
+  o Thread ForkJoinPool-1-worker-3: Test finished iteration2.api.PasswordChangeAttempt(), test duration 658 ms
+
+* Thread ForkJoinPool-1-worker-4
+  o Thread ForkJoinPool-1-worker-4: Test started iteration2.api.depositTopUpTest()
+  o Thread ForkJoinPool-1-worker-4: Test finished iteration2.api.depositTopUpTest(), test duration 2511 ms
+  o Thread ForkJoinPool-1-worker-4: Test started iteration2.api.AttemptToTopUpByAnAmountExceedingTheLimitTest()
+  o Thread ForkJoinPool-1-worker-4: Test finished iteration2.api.AttemptToTopUpByAnAmountExceedingTheLimitTest(), test duration 778 ms
+
+* Thread ForkJoinPool-1-worker-7
+  o Thread ForkJoinPool-1-worker-7: Test started iteration2.api.SuccessfulTransferOfFundsBetweenYourOwnAccounts()
+  o Thread ForkJoinPool-1-worker-7: Test finished iteration2.api.SuccessfulTransferOfFundsBetweenYourOwnAccounts(), test duration 1085 ms
+
+* Thread ForkJoinPool-1-worker-9
+  o Thread ForkJoinPool-1-worker-9: Test started iteration2.api.AttemptToTopUpSomeoneElseIsOrANonExistentAccountTest()
+  o Thread ForkJoinPool-1-worker-9: Test finished iteration2.api.AttemptToTopUpSomeoneElseIsOrANonExistentAccountTest(), test duration 578 ms
+
+* Thread ForkJoinPool-1-worker-10
+  o Thread ForkJoinPool-1-worker-10: Test started iteration2.api.SuccessfulNameChangeToAValidFormat()
+  o Thread ForkJoinPool-1-worker-10: Test finished iteration2.api.SuccessfulNameChangeToAValidFormat(), test duration 677 ms
+
+
+#Таблица времени тестов на воркер (17 тестов на 11 воркеров)
+
+| Воркер                     | Тест 1                                                     | Время 1 (мс) | Тест 2                                                     | Время 2 (мс) | Тест 3                                        | Время 3 (мс) | Суммарное время (мс) |
+|----------------------------|------------------------------------------------------------|--------------|------------------------------------------------------------|--------------|-----------------------------------------------|--------------|-----------------------|
+| ForkJoinPool-1-worker-1    | depositTopUpTest (UI)                                      | 2416         |                                                            |              |                                               |              | 2416                  |
+| ForkJoinPool-1-worker-2    | AttemptToTransferAnAmountExceedingTheSenderIsBalance (API)  | 3283         | AttemptToTransferAnAmountExceedingTheMaximumLimitOver (API)| 1676         |                                               |              | 4959                  |
+| ForkJoinPool-1-worker-3    | AttemptToSetANameConsistingOfOnlyOneWord (API)             | 3144         | PasswordChangeAttempt (API)                                | 658          |                                               |              | 3802                  |
+| ForkJoinPool-1-worker-4    | AttemptToTopUpByAnAmountExceedingTheLimitTest (UI)         | 971          | depositTopUpTest (API)                                     | 2511         | AttemptToTopUpByAnAmountExceedingTheLimit(API)| 778          | 4260                  |
+| ForkJoinPool-1-worker-5    | AttemptToTransferAnAmountExceedingTheMaximumLimitOver (UI) | 3802         |                                                            |              |                                               |              | 3802                  |
+| ForkJoinPool-1-worker-6    | AttemptToSetANameConsistingOfOnlyOneWordUiTest (UI)        | 2670         |                                                            |              |                                               |              | 2670                  |
+| ForkJoinPool-1-worker-7    | PasswordChangeAttemptUiTest (UI)                           | 1418         | SuccessfulTransferOfFundsBetweenYourOwnAccounts (API)      | 1085         |                                               |              | 2503                  |
+| ForkJoinPool-1-worker-8    | AttemptToTransferAnAmountExceedingTheSenderIsBalance (UI)  | 3454         |                                                            |              |                                               |              | 3454                  |
+| ForkJoinPool-1-worker-9    | SuccessfulNameChangeToAValidFormatUiTest (UI)              | 7213         | AttemptToTopUpSomeoneElseIsOrANonExistentAccountTest (API) | 578          |                                               |              | 7791                  |
+| ForkJoinPool-1-worker-10   | SuccessfulNameChangeToAValidFormat (API)                   | 677          |                                                            |              |                                               |              | 677                   |
+| ForkJoinPool-1-worker-11   | SuccessfulTransferOfFundsBetweenYourOwnAccountsUITest (UI) | 2005         |                                                            |              |                                               |              | 2005                  |
+
+7213 s - время тестов
+Total time:  01:53 min - это время maven
+
+no-bugs:
+[INFO]          400 ms : clean
+[INFO]          111 ms : process-resources
+[INFO]         4103 ms : compile
+[INFO]            9 ms : process-test-resources
+[INFO]         1888 ms : test-compile
+[INFO]       105309 ms : test
+
+
+
+Сравнение общего времени выполнения (общей фазы test):
+До параллелизации (в 1 поток): ~182 400 мс (более 3 минут)
+С параллелизацией (fixed = 5 потоков): 105 309 мс (1 мин 45 сек)
+
+| Конфигурация         | Кол-во тредов | Время старта приложения | Время чистого прогона тестов | Общее время выполнения |
+|----------------------|---------------|-------------------------|------------------------------|------------------------|
+| Без параллелизации   | 1             | 97 секунд               | 48 секунд                    | 145 секунд             |
+| С параллелизацией    | 5             | 97 секунд               | 8 секунд                     | 105 секунд             |
+
+
+
+Асинхронность пула JUnit:
+Несмотря на настройку parallelism=5, внутренний ForkJoinPool динамически породил до 11 логических воркеров для оптимизации очередей.
+При дальнейшем увеличении потоков, система упирается в ресурсы моего CPU
+из-за одновременного старта множества тяжелых сессий браузеров (WebDriver).
+
+Дисбаланс тестов: Общее время выполнения сильно завязано на самый длинный UI-тест (SuccessfulNameChangeToAValidFormatUiTest на 7213 мс в worker-9).
+Пока он выполнялся, остальные воркеры уже простаивали.
+
+Инфраструктурные расходы:
+Чистое время выполнения тестов в потоках значительно меньше, чем общая фаза test в Maven (105 секунд).
+Это говорит о высоких накладных расходах на повторный запуск и инициализацию окружения браузеров (методы @BeforeEach / @AfterEach).

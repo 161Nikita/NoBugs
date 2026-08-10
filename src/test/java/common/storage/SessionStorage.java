@@ -9,7 +9,15 @@ import java.util.LinkedHashMap;
 import java.util.List;
 
 public class SessionStorage {
-    private static final SessionStorage INSTANCE = new SessionStorage();
+    /**
+     * Thread Local - способ сделать SessionStorage потокобезопасным
+     *
+     * Каждый потом обращаясь к INSTANCE.get() получают свою КОПИЮ
+     *
+     * Map<Thread, SessionStorage>
+     *
+     */
+    private static final ThreadLocal<SessionStorage> INSTANCE = ThreadLocal.withInitial(SessionStorage::new);
 
     private final List<CreateUserRequest> usersList = new ArrayList<>();
 
@@ -20,16 +28,16 @@ public class SessionStorage {
     private SessionStorage() {}
 
     public static void addUsers(List<CreateUserRequest> users) {
-        INSTANCE.usersList.addAll(users);
+        INSTANCE.get().usersList.addAll(users);
         for (CreateUserRequest user : users) {
-            INSTANCE.userStepsMap.put(user, new UserSteps(user.getUsername(), user.getPassword()));
+            INSTANCE.get().userStepsMap.put(user, new UserSteps(user.getUsername(), user.getPassword()));
         }
     }
     public static UserSteps getSteps(int number) {
-        if (INSTANCE.userStepsMap.isEmpty() || number > INSTANCE.userStepsMap.size()) {
+        if (INSTANCE.get().userStepsMap.isEmpty() || number > INSTANCE.get().userStepsMap.size()) {
             throw new RuntimeException("Шаги для пользователя под номером " + number + " не найдены в SessionStorage!");
         }
-        return new ArrayList<>(INSTANCE.userStepsMap.values()).get(number - 1);
+        return new ArrayList<>(INSTANCE.get().userStepsMap.values()).get(number - 1);
     }
     public static UserSteps getSteps() {
         return getSteps(1);
@@ -37,14 +45,14 @@ public class SessionStorage {
 
     // Сохранить счет для пользователя (добавляет в список счетов этого юзера)
     public static void saveAccount(CreateUserRequest user, CreateAccountResponse account) {
-        INSTANCE.userAccountsMap
+        INSTANCE.get().userAccountsMap
                 .computeIfAbsent(user, k -> new ArrayList<>())
                 .add(account);
     }
 
     // Получить список всех счетов конкретного пользователя
     public static List<CreateAccountResponse> getAccounts(CreateUserRequest user) {
-        return INSTANCE.userAccountsMap.getOrDefault(user, new ArrayList<>());
+        return INSTANCE.get().userAccountsMap.getOrDefault(user, new ArrayList<>());
     }
 
     // Получить конкретный счет пользователя по его индексу
@@ -62,10 +70,10 @@ public class SessionStorage {
     }
 
     public static CreateUserRequest getUser(int number) {
-        if (INSTANCE.usersList.isEmpty() || number > INSTANCE.usersList.size()) {
+        if (INSTANCE.get().usersList.isEmpty() || number > INSTANCE.get().usersList.size()) {
             throw new RuntimeException("Пользователь под номером " + number + " не найден в SessionStorage!");
         }
-        return INSTANCE.usersList.get(number - 1);
+        return INSTANCE.get().usersList.get(number - 1);
     }
 
     public static CreateUserRequest getUser() {
@@ -73,8 +81,8 @@ public class SessionStorage {
     }
 
     public static void clear() {
-        INSTANCE.usersList.clear();
-        INSTANCE.userStepsMap.clear();
-        INSTANCE.userAccountsMap.clear();
+        INSTANCE.get().usersList.clear();
+        INSTANCE.get().userStepsMap.clear();
+        INSTANCE.get().userAccountsMap.clear();
     }
 }
