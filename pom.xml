@@ -13,6 +13,7 @@
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <junit.version>5.13.4</junit.version>
+        <junit.platform.version>1.13.4</junit.platform.version>
         <rest-assured.version>5.5.0</rest-assured.version>
     </properties>
 
@@ -22,6 +23,14 @@
             <groupId>org.junit.jupiter</groupId>
             <artifactId>junit-jupiter</artifactId>
             <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Принудительно выравниваем версию лаунчера для устранения внутренней ошибки IDEA -->
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>${junit.platform.version}</version>
             <scope>test</scope>
         </dependency>
 
@@ -40,6 +49,7 @@
             <version>2.17.2</version>
             <scope>test</scope>
         </dependency>
+
         <!-- Lombok для автогенерации кода (геттеры, сеттеры, билдеры) -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -47,16 +57,134 @@
             <version>1.18.34</version>
             <scope>provided</scope>
         </dependency>
+
         <dependency>
             <groupId>org.assertj</groupId>
             <artifactId>assertj-core</artifactId>
             <version>3.27.7</version>
             <scope>test</scope>
         </dependency>
+
         <dependency>
             <groupId>com.github.curious-odd-man</groupId>
             <artifactId>rgxgen</artifactId>
             <version>1.3</version>
         </dependency>
+
+        <!-- Allure репорты -->
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-junit5</artifactId>
+            <version>2.29.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-rest-assured</artifactId>
+            <version>2.29.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-selenide</artifactId>
+            <version>2.29.1</version>
+        </dependency>
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-assertj</artifactId>
+            <version>2.29.1</version>
+        </dependency>
+
+        <!-- Драйвер базы данных PostgreSQL -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.github.viclovsky</groupId>
+            <artifactId>swagger-coverage-rest-assured</artifactId>
+            <version>1.5.0</version>
+        </dependency>
     </dependencies>
+
+    <profiles>
+        <profile>
+            <id>api</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <version>3.2.5</version>
+                        <configuration>
+                            <includes>
+                                <include>**/api/**/*Test.java</include>
+                            </includes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <profile>
+            <id>ui</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <version>3.2.5</version>
+                        <configuration>
+                            <includes>
+                                <include>**/ui/**/*Test.java</include>
+                            </includes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+    <build>
+        <plugins>
+            <!-- Плагин для корректного поиска тестов в IDEA -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <includes>
+                        <include>**/*Test.java</include>
+                    </includes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-report-plugin</artifactId>
+                <version>3.2.5</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>1.18.34</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <compilerArgs>
+                        <arg>-parameters</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>io.qameta.allure</groupId>
+                <artifactId>allure-maven</artifactId>
+                <version>2.15.2</version>
+            </plugin>
+        </plugins>
+    </build>
 </project>

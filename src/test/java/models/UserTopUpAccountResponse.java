@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 
 public class UserTopUpAccountResponse extends BaseModel{
-    private long id;
+    private String id;
     private String accountNumber;
     private double balance;
     private double depositAmount;

@@ -6,7 +6,8 @@ import org.apache.http.HttpStatus;
 import org.hamcrest.Matchers;
 
 public class ResponseSpecs {
-    private ResponseSpecs(){}
+    private ResponseSpecs() {
+    }
 
     private static ResponseSpecBuilder defaultResponseBuilder() {
         return new ResponseSpecBuilder();
@@ -35,7 +36,7 @@ public class ResponseSpecs {
         return requestReturnsBadRequest("message", errorValue);
     }
 
-        public static ResponseSpecification requestReturnsForbidden(String errorKey, String errorValue) {
+    public static ResponseSpecification requestReturnsForbidden(String errorKey, String errorValue) {
         return defaultResponseBuilder()
                 .expectStatusCode(HttpStatus.SC_FORBIDDEN)
                 .expectBody(errorKey, Matchers.equalTo(errorValue))
@@ -46,4 +47,19 @@ public class ResponseSpecs {
         return requestReturnsForbidden("message", errorValue);
     }
 
+    public static ResponseSpecification requestReturnsPlainBadRequest(String errorValue) {
+        return defaultResponseBuilder()
+                .expectStatusCode(HttpStatus.SC_BAD_REQUEST)
+                // Передаем только матчер, чтобы проверить весь текст ответа целиком, а не JSON-поле
+                .expectBody(Matchers.equalTo(errorValue))
+                .build();
+    }
+
+    public static ResponseSpecification requestReturnsPlainForbidden(String errorValue) {
+        return defaultResponseBuilder()
+                .expectStatusCode(org.apache.http.HttpStatus.SC_FORBIDDEN) // Проверяем строго 403 status
+                // Проверяем весь текст ответа целиком (без привязки к JSON-ключам)
+                .expectBody(org.hamcrest.Matchers.equalTo(errorValue))
+                .build();
+    }
 }

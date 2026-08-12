@@ -1,8 +1,12 @@
-package iteration2;
+package iteration2.api;
 
 import constants.ErrorMessages;
 import generators.RandomData;
-import models.*;
+import iteration2.BaseTest;
+import models.CreateAccountResponse;
+import models.CreateUserRequest;
+import models.UserTransferAccountRequest;
+import models.UserTransferAccountResponse;
 import models.comparison.ModelAssertions;
 import models.comparison.ModelComparator;
 import org.assertj.core.data.Offset;
@@ -12,6 +16,7 @@ import requests.skelethon.requesters.CrudRequester;
 import requests.skelethon.requesters.ValidatedCrudRequester;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
+import utils.APIVersion;
 
 import java.util.List;
 import java.util.stream.IntStream;
@@ -20,6 +25,7 @@ import java.util.stream.IntStream;
 public class TransferringMoney extends BaseTest {
 
     @Test
+    @APIVersion("with_database")
     public void SuccessfulTransferOfFundsBetweenYourOwnAccounts() {
         CreateUserRequest user = createAndAuthorizeUser();
 
@@ -35,9 +41,9 @@ public class TransferringMoney extends BaseTest {
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.USER_TOP_UP_ACCOUNT,
                 ResponseSpecs.requestReturnsOK()
-        ).post(UserTopUpAccountRequest.builder()
-                .accountId(senderAccountId)
-                .amount(initialAmount)
+        ).post(CreateAccountResponse.builder()
+                .id(senderAccountId)
+                .balance(initialAmount)
                 .build());
 
         CreateAccountResponse receiverAccount = new ValidatedCrudRequester<CreateAccountResponse>(
@@ -89,9 +95,22 @@ public class TransferringMoney extends BaseTest {
                 .extracting(CreateAccountResponse::getBalance)
                 .containsExactly(expectedReceiverBalance);
 
+        // проверка через бд
+        iteration2.api.dao.AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
+        softly.assertThat(senderAccountDb.getBalance())
+                .as("Проверка в Postgres: баланс отправителя в БД корректно уменьшился")
+                .isEqualTo(expectedSenderBalance);
+
+        // Получаем DAO аккаунта получателя из БД и проверяем зачисление денег
+        iteration2.api.dao.AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
+        softly.assertThat(receiverAccountDb.getBalance())
+                .as("Проверка в Postgres: баланс получателя в БД корректно увеличился")
+                .isEqualTo(expectedReceiverBalance);
+
     }
 
     @Test
+    @APIVersion("with_database")
     public void AttemptToTransferAnAmountExceedingTheMaximumLimitOverTest() {
         CreateUserRequest user = createAndAuthorizeUser();
         CreateUserRequest user2 = createAndAuthorizeUser();
@@ -114,7 +133,7 @@ public class TransferringMoney extends BaseTest {
                 Endpoint.USER_TOP_UP_ACCOUNT,
                 ResponseSpecs.requestReturnsOK());
         IntStream.range(0, 3).forEach(i ->
-                topUp.post(UserTopUpAccountRequest.builder().accountId(senderAccountId).amount(chunk).build())
+                topUp.post(CreateAccountResponse.builder().id(senderAccountId).balance(chunk).build())
         );
 
         // 3. Создаем счет № 2 - получатель
@@ -129,7 +148,7 @@ public class TransferringMoney extends BaseTest {
         new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.USER_TRANSFER_ACCOUNT,
-                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.TRANSFER_EXCEEDS_LIMIT)
+                ResponseSpecs.requestReturnsPlainBadRequest(ErrorMessages.TRANSFER_EXCEEDS_LIMIT)
         ).post(UserTransferAccountRequest.builder()
                 .senderAccountId(senderAccountId)
                 .receiverAccountId(receiverAccountId)
@@ -164,9 +183,23 @@ public class TransferringMoney extends BaseTest {
                 .filteredOn(account -> account.getId() == receiverAccountId)
                 .extracting(CreateAccountResponse::getBalance)
                 .allSatisfy(balance -> softly.assertThat(balance).isZero());
+
+        // Проверяем баланс отправителя в бд
+        iteration2.api.dao.AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
+        softly.assertThat(senderAccountDb.getBalance())
+                .as("Проверка в Postgres: баланс отправителя в таблице accounts остался нетронутым")
+                .isCloseTo(expectedSenderBalance, Offset.offset(0.01));
+
+        // Проверяем баланс получателя в бд
+        iteration2.api.dao.AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
+        softly.assertThat(receiverAccountDb.getBalance())
+                .as("Проверка в Postgres: баланс получателя в таблице accounts остался строго нулевым")
+                .isZero();
+
     }
 
     @Test
+    @APIVersion("with_database")
     public void AttemptToTransferAnAmountExceedingTheSenderIsBalance() {
         CreateUserRequest user = createAndAuthorizeUser();
         CreateUserRequest user2 = createAndAuthorizeUser();
@@ -185,9 +218,9 @@ public class TransferringMoney extends BaseTest {
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.USER_TOP_UP_ACCOUNT,
                 ResponseSpecs.requestReturnsOK()
-        ).post(UserTopUpAccountRequest.builder()
-                .accountId(senderAccountId)
-                .amount(initialAmount)
+        ).post(CreateAccountResponse.builder()
+                .id(senderAccountId)
+                .balance(initialAmount)
                 .build());
 
         // 3. Создаем счет № 2 - получатель
@@ -205,7 +238,7 @@ public class TransferringMoney extends BaseTest {
         new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.USER_TRANSFER_ACCOUNT,
-                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.INSUFFICIENT_FUNDS)
+                ResponseSpecs.requestReturnsPlainBadRequest(ErrorMessages.INSUFFICIENT_FUNDS)
         ).post(UserTransferAccountRequest.builder()
                 .senderAccountId(senderAccountId)
                 .receiverAccountId(receiverAccountId)
@@ -229,11 +262,24 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.requestReturnsOK()
         ).getList();
 
-        // проверка, что средтсва получателю не зачислились
+        // проверка, что средства получателю не зачислились
         softly.assertThat(receiverAccounts)
                 .as("Проверка, что баланс получателя остался нулевым после неудавшегося перевода")
                 .filteredOn(account -> account.getId() == receiverAccountId)
                 .extracting(CreateAccountResponse::getBalance)
                 .allSatisfy(balance -> softly.assertThat(balance).isZero());
+
+
+        // Проверяем баланс отправителя в бд
+        iteration2.api.dao.AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
+        softly.assertThat(senderAccountDb.getBalance())
+                .as("Проверка в Postgres: после ошибки нехватки средств баланс отправителя в БД остался нетронутым")
+                .isCloseTo(initialAmount, org.assertj.core.data.Offset.offset(0.01));
+
+        // Проверяем баланс получателя в бд
+        iteration2.api.dao.AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
+        softly.assertThat(receiverAccountDb.getBalance())
+                .as("Проверка в Postgres: баланс получателя в таблице accounts остался строго нулевым")
+                .isZero();
     }
 }
