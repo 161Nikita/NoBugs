@@ -51,6 +51,28 @@ public enum Endpoint {
             "/accounts/transfer",
             UserTransferAccountRequest.class,
             UserTransferAccountResponse.class
+    ),
+    ACCOUNT_DEPOSIT(
+            "/accounts/deposit",
+            DepositRequest.class,
+            DepositResponse.class
+    ),
+
+    ACCOUNT_TRANSFER(
+            "/accounts/transfer",
+            TransferRequest.class,
+            TransferResponse.class
+    ),
+    TRANSFER_WITH_FRAUD_CHECK(
+            "/accounts/transfer-with-fraud-check",
+            TransferRequest.class,
+            TransferResponse.class
+    ),
+
+    FRAUD_CHECK_STATUS(
+            "/api/v1/accounts/fraud-check/{transactionId}",
+            BaseModel.class,
+            FraudCheckResponse.class
     );
 
     private final String url;

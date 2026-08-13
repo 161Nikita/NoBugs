@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import requests.skelethon.Endpoint;
 import requests.skelethon.requesters.CrudRequester;
 import requests.skelethon.requesters.ValidatedCrudRequester;
+import requests.skelethon.steps.AccountSteps;
 import requests.skelethon.steps.DataBaseSteps;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
@@ -28,7 +29,7 @@ public class UserDeposit extends BaseTest {
     public void depositTopUpTest() {
         CreateUserRequest user = createAndAuthorizeUser();
 
-        long accountId = requests.skelethon.steps.AccountSteps.createAccount(
+        long accountId = AccountSteps.createAccount(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
         ).getId();
         // генерация суммы пополнения
