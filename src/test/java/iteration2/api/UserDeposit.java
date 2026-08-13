@@ -3,6 +3,7 @@ package iteration2.api;
 import constants.ErrorMessages;
 import generators.RandomData;
 import iteration2.BaseTest;
+import iteration2.api.comparison.DaoAndModelAssertions;
 import iteration2.api.dao.AccountDao;
 import iteration2.api.dao.UserDao;
 import models.CreateAccountResponse;
@@ -61,12 +62,20 @@ public class UserDeposit extends BaseTest {
 
 
         // проверка через базу данных
+
+        // 1. Находим нужный DTO из списка accounts для передачи в компаратор
+        CreateAccountResponse actualDto = accounts.stream()
+                .filter(account -> account.getId() == accountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Аккаунт с ID " + accountId + " не найден в списке"));
+
+        // 2. Делаем SQL-запрос в БД и получаем DAO
         AccountDao accountDao = DataBaseSteps.getAccountById(accountId);
 
-        // 2. Проверяем баланс в базе данных Postgres
-        softly.assertThat(accountDao.getBalance())
-                .as("Проверка в Postgres: баланс в базе данных успешно обновился")
-                .isEqualTo(expectedBalance);
+        // 3. Сравниваем DAO и DTO через кастомный компаратор
+        DaoAndModelAssertions.assertThat(actualDto, accountDao).match();
+
+        softly.assertAll();
     }
 
     @Test
@@ -106,10 +115,21 @@ public class UserDeposit extends BaseTest {
                 .allSatisfy(balance -> softly.assertThat(balance).isZero());
 
         // проверка через бд
-        iteration2.api.dao.AccountDao accountDao = DataBaseSteps.getAccountById(accountId);
-        softly.assertThat(accountDao.getBalance())
-                .as("Проверка в Postgres: после ошибки лимита баланс в БД остался нулевым")
-                .isZero();
+
+        // 1. Находим актуальный DTO из списка accounts (где баланс должен быть нулевым)
+        CreateAccountResponse actualDto = accounts.stream()
+                .filter(account -> account.getId() == accountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Аккаунт с ID " + accountId + " не найден в списке"));
+
+        // 2. Делаем SQL-запрос в БД и получаем DAO
+        AccountDao accountDao = DataBaseSteps.getAccountById(accountId);
+
+        // 3. Полное сравнение DAO и DTO через кастомный компаратор
+        // Он проверит, что состояние в базе полностью соответствует DTO из GET-запроса
+        DaoAndModelAssertions.assertThat(actualDto, accountDao).match();
+
+        softly.assertAll();
     }
 
     @Test
@@ -125,7 +145,7 @@ public class UserDeposit extends BaseTest {
                 Endpoint.USER_TOP_UP_ACCOUNT,
                 ResponseSpecs.requestReturnsPlainForbidden(ErrorMessages.UNAUTHORIZED_ACCOUNT_ACCESS)
         ).post(CreateAccountResponse.builder()
-                .id(RandomData.getNonExistentAccountId())
+                .id(nonExistentId)
                 .balance(RandomData.getAmount())
                 .build());
         List<CreateAccountResponse> accounts = new ValidatedCrudRequester<CreateAccountResponse>(

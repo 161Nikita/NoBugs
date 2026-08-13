@@ -3,6 +3,7 @@ package iteration2.api;
 import constants.ErrorMessages;
 import generators.RandomData;
 import iteration2.BaseTest;
+import iteration2.api.comparison.DaoAndModelAssertions;
 import iteration2.api.dao.UserDao;
 import models.CreateUserRequest;
 import models.CreateUserResponse;
@@ -43,10 +44,13 @@ public class UpdateUsernameProfile extends BaseTest {
                 .isEqualTo(randomName);
 
         // проверка через бд
+        // 1. Делаем SQL-запрос в БД и получаем DAO пользователя
         UserDao userDb = DataBaseSteps.getUserByUsername(user.getUsername());
-        softly.assertThat(userDb.getName())
-                .as("Проверка в Postgres: измененное имя пользователя успешно записалось в БД")
-                .isEqualTo(randomName);
+
+        // 2. Полное сравнение DAO и CreateUserResponse через кастомный компаратор.
+        DaoAndModelAssertions.assertThat(profile, userDb).match();
+
+        softly.assertAll();
     }
 
     @Test
@@ -75,14 +79,19 @@ public class UpdateUsernameProfile extends BaseTest {
                 .isNotEqualTo(invalidName);
 
         // проверка через бд
+
+        // 1. Делаем SQL-запрос в БД и получаем DAO пользователя
         UserDao userDb = DataBaseSteps.getUserByUsername(user.getUsername());
-        softly.assertThat(userDb.getName())
-                .as("Проверка в Postgres: имя пользователя в БД не изменилось")
-                .isNotEqualTo(invalidName);
-        // проверяем в БД, что пароль остался старым и безопасным
+
+        // 2. Проверяем точечно в БД, что пароль остался старым и безопасным.
         softly.assertThat(userDb.getPassword())
                 .as("Проверка в Postgres: пароль пользователя в БД остался прежним и не обновился")
                 .isEqualTo(user.getPassword());
+
+        // 3. Полное сравнение DAO и CreateUserResponse через кастомный компаратор.
+        DaoAndModelAssertions.assertThat(profile, userDb).match();
+
+        softly.assertAll();
     }
 
     @Test
@@ -110,9 +119,10 @@ public class UpdateUsernameProfile extends BaseTest {
 
         // проверяем через бд
         UserDao userDb = DataBaseSteps.getUserByUsername(user.getUsername());
-        // транзакция откатилась и невалидное имя не попало в таблицы
-        softly.assertThat(userDb.getName())
-                .as("Проверка в Postgres: невалидное имя пользователя не записалось в базу данных")
-                .isNotEqualTo(invalidName);
+
+        // 2. Полное сравнение DAO и CreateUserResponse через кастомный компаратор.
+        DaoAndModelAssertions.assertThat(profile, userDb).match();
+
+        softly.assertAll();
     }
 }

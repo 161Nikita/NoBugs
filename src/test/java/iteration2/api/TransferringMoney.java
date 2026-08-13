@@ -3,6 +3,8 @@ package iteration2.api;
 import constants.ErrorMessages;
 import generators.RandomData;
 import iteration2.BaseTest;
+import iteration2.api.comparison.DaoAndModelAssertions;
+import iteration2.api.dao.AccountDao;
 import models.CreateAccountResponse;
 import models.CreateUserRequest;
 import models.UserTransferAccountRequest;
@@ -36,7 +38,7 @@ public class TransferringMoney extends BaseTest {
         ).post();
         long senderAccountId = senderAccount.getId();
 
-        double initialAmount = RandomData.getAmount();
+        double initialAmount = (Double) ModelComparator.normalizeValue(RandomData.getAmount());
         new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.USER_TOP_UP_ACCOUNT,
@@ -53,7 +55,7 @@ public class TransferringMoney extends BaseTest {
         ).post();
         long receiverAccountId = receiverAccount.getId();
 
-        double transferAmount = initialAmount / 2;
+        double transferAmount = (Double) ModelComparator.normalizeValue(initialAmount / 2);
 
         UserTransferAccountRequest request = UserTransferAccountRequest.builder()
                 .senderAccountId(senderAccountId)
@@ -78,7 +80,7 @@ public class TransferringMoney extends BaseTest {
         ).getList();
 
         // округляем до копеек
-        double expectedSenderBalance = initialAmount - transferAmount;
+        double expectedSenderBalance = (Double) ModelComparator.normalizeValue(initialAmount - transferAmount);
         double expectedReceiverBalance = transferAmount;
 
         // проверяем актуальный баланс счёта отправителя
@@ -96,16 +98,25 @@ public class TransferringMoney extends BaseTest {
                 .containsExactly(expectedReceiverBalance);
 
         // проверка через бд
-        iteration2.api.dao.AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
-        softly.assertThat(senderAccountDb.getBalance())
-                .as("Проверка в Postgres: баланс отправителя в БД корректно уменьшился")
-                .isEqualTo(expectedSenderBalance);
+        CreateAccountResponse actualSenderDto = accounts.stream()
+                .filter(account -> account.getId() == senderAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Счет отправителя не найден"));
 
-        // Получаем DAO аккаунта получателя из БД и проверяем зачисление денег
+        CreateAccountResponse actualReceiverDto = accounts.stream()
+                .filter(account -> account.getId() == receiverAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Счет получателя не найден"));
+
+        // Запрос в БД и сравнение через кастомный компаратор для отправителя
+        iteration2.api.dao.AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
+        DaoAndModelAssertions.assertThat(actualSenderDto, senderAccountDb).match();
+
+        // Запрос в БД и сравнение через кастомный компаратор для получателя
         iteration2.api.dao.AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
-        softly.assertThat(receiverAccountDb.getBalance())
-                .as("Проверка в Postgres: баланс получателя в БД корректно увеличился")
-                .isEqualTo(expectedReceiverBalance);
+        DaoAndModelAssertions.assertThat(actualReceiverDto, receiverAccountDb).match();
+
+        softly.assertAll();
 
     }
 
@@ -125,7 +136,7 @@ public class TransferringMoney extends BaseTest {
 
         // Расчет суммы перевода (> 10000) и деление её на 3 равные части
         double transferAmountOverLimit = RandomData.getTransferOverLimit();
-        double chunk = transferAmountOverLimit / 3.0;
+        double chunk = (Double) ModelComparator.normalizeValue(transferAmountOverLimit / 3.0);
 
         // 2. Пополнение своего счета № 1 (копим баланс за 3 захода)
         CrudRequester topUp = new CrudRequester(
@@ -185,17 +196,27 @@ public class TransferringMoney extends BaseTest {
                 .allSatisfy(balance -> softly.assertThat(balance).isZero());
 
         // Проверяем баланс отправителя в бд
-        iteration2.api.dao.AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
-        softly.assertThat(senderAccountDb.getBalance())
-                .as("Проверка в Postgres: баланс отправителя в таблице accounts остался нетронутым")
-                .isCloseTo(expectedSenderBalance, Offset.offset(0.01));
 
-        // Проверяем баланс получателя в бд
-        iteration2.api.dao.AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
-        softly.assertThat(receiverAccountDb.getBalance())
-                .as("Проверка в Postgres: баланс получателя в таблице accounts остался строго нулевым")
-                .isZero();
+        // Извлекаем актуальные DTO из ответов API
+        CreateAccountResponse actualSenderDto = senderAccounts.stream()
+                .filter(account -> account.getId() == senderAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Счет отправителя не найден в списке"));
 
+        CreateAccountResponse actualReceiverDto = receiverAccounts.stream()
+                .filter(account -> account.getId() == receiverAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Счет получателя не найден в списке"));
+
+        // Запрос в БД и комплексное сравнение для отправителя
+        AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
+        DaoAndModelAssertions.assertThat(actualSenderDto, senderAccountDb).match();
+
+        // Запрос в БД и комплексное сравнение для получателя
+        AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
+        DaoAndModelAssertions.assertThat(actualReceiverDto, receiverAccountDb).match();
+
+        softly.assertAll();
     }
 
     @Test
@@ -270,16 +291,25 @@ public class TransferringMoney extends BaseTest {
                 .allSatisfy(balance -> softly.assertThat(balance).isZero());
 
 
-        // Проверяем баланс отправителя в бд
-        iteration2.api.dao.AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
-        softly.assertThat(senderAccountDb.getBalance())
-                .as("Проверка в Postgres: после ошибки нехватки средств баланс отправителя в БД остался нетронутым")
-                .isCloseTo(initialAmount, org.assertj.core.data.Offset.offset(0.01));
+        // Извлекаем актуальные DTO из ответов API
+        CreateAccountResponse actualSenderDto = senderAccounts.stream()
+                .filter(account -> account.getId() == senderAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Счет отправителя не найден в списке"));
 
-        // Проверяем баланс получателя в бд
-        iteration2.api.dao.AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
-        softly.assertThat(receiverAccountDb.getBalance())
-                .as("Проверка в Postgres: баланс получателя в таблице accounts остался строго нулевым")
-                .isZero();
+        CreateAccountResponse actualReceiverDto = receiverAccounts.stream()
+                .filter(account -> account.getId() == receiverAccountId)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Счет получателя не найден в списке"));
+
+        // Запрос в БД и комплексное сравнение для отправителя
+        AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
+        DaoAndModelAssertions.assertThat(actualSenderDto, senderAccountDb).match();
+
+        // Запрос в БД и комплексное сравнение для получателя
+        AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
+        DaoAndModelAssertions.assertThat(actualReceiverDto, receiverAccountDb).match();
+
+        softly.assertAll();
     }
 }
