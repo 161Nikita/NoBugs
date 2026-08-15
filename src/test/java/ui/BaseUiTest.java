@@ -1,14 +1,12 @@
-package iteration2.ui;
+package ui;
 
 import com.codeborne.selenide.Configuration;
 import com.codeborne.selenide.Selenide;
-import common.storage.SessionStorage;
 import extensions.BrowserMatchExtension;
 import extensions.UserSessionExtension;
-import iteration2.api.BaseTest;
+import api.BaseTest;
 import models.CreateUserRequest;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.openqa.selenium.remote.DesiredCapabilities;
 import specs.RequestSpecs;

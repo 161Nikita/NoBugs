@@ -1,4 +1,4 @@
-package iteration2.ui.elements;
+package ui.elements;
 
 import com.codeborne.selenide.SelenideElement;
 

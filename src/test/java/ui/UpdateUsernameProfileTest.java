@@ -1,9 +1,9 @@
-package iteration2.ui;
+package ui;
 
 import common.annotations.UserSession;
 import generators.RandomData;
-import iteration2.ui.pages.BankAlert;
-import iteration2.ui.pages.UserDashboard;
+import ui.pages.BankAlert;
+import ui.pages.UserDashboard;
 import org.junit.jupiter.api.Test;
 
 @UserSession

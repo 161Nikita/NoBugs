@@ -1,4 +1,4 @@
-package iteration2.ui.pages;
+package ui.pages;
 
 import com.codeborne.selenide.ElementsCollection;
 import com.codeborne.selenide.Selectors;

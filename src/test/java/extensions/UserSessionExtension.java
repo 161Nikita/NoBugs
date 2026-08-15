@@ -12,7 +12,7 @@ import requests.skelethon.steps.AdminSteps;
 import java.util.LinkedList;
 import java.util.List;
 
-import static iteration2.ui.BaseUiTest.authAsUser;
+import static ui.BaseUiTest.authAsUser;
 
 public class UserSessionExtension implements BeforeEachCallback {
     @Override

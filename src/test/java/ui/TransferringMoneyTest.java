@@ -1,4 +1,4 @@
-package iteration2.ui;
+package ui;
 
 import common.annotations.Browsers;
 import common.annotations.UserSession;
@@ -6,8 +6,8 @@ import common.storage.SessionStorage;
 import common.utils.RetryUtils;
 import extensions.Platform;
 import generators.RandomData;
-import iteration2.ui.pages.TransferPage;
-import iteration2.ui.pages.UserDashboard;
+import ui.pages.TransferPage;
+import ui.pages.UserDashboard;
 import models.CreateAccountResponse;
 import models.CreateUserRequest;
 import org.junit.jupiter.api.Test;

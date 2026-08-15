@@ -1,10 +1,10 @@
-package iteration2.ui.pages;
+package ui.pages;
 
 import com.codeborne.selenide.ElementsCollection;
 import com.codeborne.selenide.Selectors;
 import com.codeborne.selenide.Selenide;
 import com.codeborne.selenide.SelenideElement;
-import iteration2.ui.elements.BaseElement;
+import ui.elements.BaseElement;
 import org.openqa.selenium.Alert;
 
 import java.lang.reflect.Field;

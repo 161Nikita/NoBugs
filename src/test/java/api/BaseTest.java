@@ -1,4 +1,4 @@
-package iteration2.api;
+package api;
 
 import models.CreateUserRequest;
 import models.LoginUserRequest;

@@ -1,4 +1,4 @@
-package iteration2.ui.pages;
+package ui.pages;
 
 
 import lombok.Getter;
