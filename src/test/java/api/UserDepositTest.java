@@ -2,7 +2,9 @@ package iteration2.api;
 
 import constants.ErrorMessages;
 import generators.RandomData;
-import models.*;
+import models.CreateAccountResponse;
+import models.CreateUserRequest;
+import models.UserTopUpAccountRequest;
 import org.junit.jupiter.api.Test;
 import requests.skelethon.Endpoint;
 import requests.skelethon.requesters.CrudRequester;
@@ -10,11 +12,8 @@ import requests.skelethon.requesters.ValidatedCrudRequester;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
 
-import static io.restassured.RestAssured.given;
-import static io.restassured.RestAssured.post;
 
-
-public class UserDeposit extends BaseTest {
+public class UserDepositTest extends BaseTest {
 
     @Test
     public void depositTopUpTest() {

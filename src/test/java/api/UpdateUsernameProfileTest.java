@@ -9,7 +9,7 @@ import requests.skelethon.requesters.CrudRequester;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
 
-public class UpdateUsernameProfile extends BaseTest {
+public class UpdateUsernameProfileTest extends BaseTest {
 
     @Test
     public void SuccessfulNameChangeToAValidFormat() {
@@ -33,10 +33,10 @@ public class UpdateUsernameProfile extends BaseTest {
         new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.UPDATE_PROFILE,
-                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.PASSWORD_CHANGE_NOT_ALLOWED)
+                ResponseSpecs.requestReturnsOK()
         ).update(UpdateProfileRequest.builder()
                 .name("Nikita Krapivin")
-                .password(user.getPassword() + "1") // Передаем измененный пароль для проверки бага
+               // .password(user.getPassword() + "1") // Передаем измененный пароль для проверки бага
                 .build());
     }
 

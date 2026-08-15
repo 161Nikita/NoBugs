@@ -12,7 +12,7 @@ import specs.RequestSpecs;
 import specs.ResponseSpecs;
 
 
-public class TransferringMoney extends BaseTest {
+public class TransferringMoneyTest extends BaseTest {
 
     @Test
     public void SuccessfulTransferOfFundsBetweenYourOwnAccounts() {
