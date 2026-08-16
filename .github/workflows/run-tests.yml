@@ -31,7 +31,7 @@ jobs: # аналог этапов
 
       # Этот шаг заходит в нужную папку, запускает скрипт и возвращается назад
       - name: Set up services
-        run: cd infra/docker_compose && bash restart_docker.sh && cd ../..
+        run: cd infra/docker_compose && bash restart_docker.sh
 
       # Финальный шаг запуска тестов с переменными окружения
       - name: Run tests
