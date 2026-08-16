@@ -1,5 +1,7 @@
 package requests.skelethon.requesters;
 
+import common.helpers.StepLogger;
+import io.qameta.allure.Step;
 import io.restassured.response.ValidatableResponse;
 import io.restassured.specification.RequestSpecification;
 import io.restassured.specification.ResponseSpecification;
@@ -19,22 +21,26 @@ public class CrudRequester extends HttpRequest implements CrudEndpointInterface,
 
     @Override
     public ValidatableResponse post(BaseModel model) {
-        var body = model == null ? "" : model;
-        return given()
-                .spec(requestSpecification)
-                .body(body)
-                .post(endpoint.getUrl())
-                .then()
-                .assertThat()
-                .spec(responseSpecification);
+        return StepLogger.log("POST request to " + endpoint.getUrl(), () -> {
+            var body = model == null ? "" : model;
+            return given()
+                    .spec(requestSpecification)
+                    .body(body)
+                    .post(endpoint.getUrl())
+                    .then()
+                    .assertThat()
+                    .spec(responseSpecification);
+        });
     }
 
     @Override
+    @Step("GET запрос на {endpoint} с id {id}")
     public Object get(long id) {
         return null;
     }
 
     @Override
+    @Step("PUT запрос на {endpoint} с телом {model}")
     public ValidatableResponse update(long id, BaseModel model) {
         String finalUrl = (id == -1) ? endpoint.getUrl() : endpoint.getUrl() + "/" + id;
         return given()
@@ -47,11 +53,13 @@ public class CrudRequester extends HttpRequest implements CrudEndpointInterface,
     }
 
     @Override
+    @Step("DELETE запрос на {endpoint} с id {id}")
     public Object delete(long id) {
         return null;
     }
 
     @Override
+    @Step("GET запрос на {endpoint}")
     public ValidatableResponse getAll(Class<?> clazz) {
         return given()
                 .spec(requestSpecification)

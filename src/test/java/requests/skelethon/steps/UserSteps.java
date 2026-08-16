@@ -1,5 +1,6 @@
 package requests.skelethon.steps;
 
+import common.helpers.StepLogger;
 import io.restassured.specification.RequestSpecification;
 import models.CreateAccountResponse;
 import requests.skelethon.Endpoint;
@@ -19,12 +20,17 @@ public class UserSteps {
     }
 
     public List<CreateAccountResponse> getAllAccounts() {
-        return new ValidatedCrudRequester<CreateAccountResponse>(
-                RequestSpecs.authAsUser(username, password),
-                Endpoint.CUSTOMER_ACCOUNTS,
-                ResponseSpecs.requestReturnsOK()).getAll(CreateAccountResponse[].class);
+        return StepLogger.log("User " + username + " get all accounts", () -> {
+            return new ValidatedCrudRequester<CreateAccountResponse>(
+                    RequestSpecs.authAsUser(username, password),
+                    Endpoint.CUSTOMER_ACCOUNTS,
+                    ResponseSpecs.requestReturnsOK()).getAll(CreateAccountResponse[].class);
+        });
     }
+
     public RequestSpecification getUserSpec() {
-        return specs.RequestSpecs.authAsUser(username, password);
+        return StepLogger.log("Получение API-спецификации для пользователя: " + username, () -> {
+            return specs.RequestSpecs.authAsUser(username, password);
+        });
     }
 }

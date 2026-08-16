@@ -1,5 +1,6 @@
 package requests.skelethon.steps;
 
+import common.helpers.StepLogger;
 import generators.RandomModelGenerator;
 import models.CreateUserRequest;
 import models.CreateUserResponse;
@@ -17,19 +18,24 @@ public class AdminSteps {
         CreateUserRequest userRequest =
                 RandomModelGenerator.generate(CreateUserRequest.class);
 
-        new ValidatedCrudRequester<CreateUserResponse>(
-                RequestSpecs.adminSpec(),
-                Endpoint.ADMIN_USER,
-                ResponseSpecs.entityWasCreated()
-        ).post(userRequest);
+        return StepLogger.log("Admin creates user " + userRequest.getUsername(), () -> {
+                    new ValidatedCrudRequester<CreateUserResponse>(
+                            RequestSpecs.adminSpec(),
+                            Endpoint.ADMIN_USER,
+                            ResponseSpecs.entityWasCreated())
+                            .post(userRequest);
 
-        return userRequest;
+                    return userRequest;
+                }
+        );
     }
 
     public static List<CreateUserResponse> getAllUsers() {
-        return new ValidatedCrudRequester<CreateUserResponse>(
-                RequestSpecs.adminSpec(),
-                Endpoint.ADMIN_USER,
-                ResponseSpecs.requestReturnsOK()).getAll(CreateUserResponse[].class);
+        return StepLogger.log("Admin gets all users", () -> {
+            return new ValidatedCrudRequester<CreateUserResponse>(
+                    RequestSpecs.adminSpec(),
+                    Endpoint.ADMIN_USER,
+                    ResponseSpecs.requestReturnsOK()).getAll(CreateUserResponse[].class);
+        });
     }
 }

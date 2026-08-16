@@ -3,6 +3,7 @@ package ui.pages;
 import com.codeborne.selenide.Condition;
 import com.codeborne.selenide.Selectors;
 import com.codeborne.selenide.SelenideElement;
+import common.helpers.StepLogger;
 
 import static com.codeborne.selenide.Selenide.$;
 
@@ -17,24 +18,34 @@ public class DepositPage extends BasePage<DepositPage> {
     }
 
     public DepositPage selectFirstAccount() {
-        accountSelector
-                .shouldBe(Condition.visible)
-                .shouldHave(Condition.text("-- Choose an account --"))
-                .selectOption(1);
-        return this;
+        return StepLogger.log("Выбор первого доступного счета из списка", () -> {
+            accountSelector
+                    .shouldBe(Condition.visible)
+                    .shouldHave(Condition.text("-- Choose an account --"))
+                    .selectOption(1);
+            return this;
+        });
     }
 
     public DepositPage enterAmount(double amount) {
-        amountInput.setValue(String.valueOf(amount));
-        return this;
+        return StepLogger.log("Ввод суммы пополнения: " + amount, () -> {
+            amountInput.setValue(String.valueOf(amount));
+            return this;
+        });
     }
 
     public void clickSubmit() {
-        submitButton.click();
+        StepLogger.log("Нажатие кнопки подтверждения депозита", () -> {
+            submitButton.click();
+            return null;
+        });
     }
 
     public void clickSubmitAndExpectError(BankAlert bankAlert) {
-        submitButton.click();
-        this.checkAlertMessageAndAccept(bankAlert);
+        StepLogger.log("Отправка формы депозита и проверка уведомления: " + bankAlert, () -> {
+            submitButton.click();
+            this.checkAlertMessageAndAccept(bankAlert);
+            return null;
+        });
     }
 }

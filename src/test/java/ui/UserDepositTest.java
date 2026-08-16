@@ -30,7 +30,7 @@ public class UserDepositTest extends BaseUiTest {
                 .depositMoney()
                 .selectFirstAccount()
                 .enterAmount(RandomData.getAmount())
-                .clickSubmitAndExpectError(BankAlert.TOP_UP_DEPOSIT_SUCCESSFUL);
+                .clickSubmitAndExpectError(BankAlert.TOP_UP_DEPOSIT_ERROR);
     }
 
     @Test

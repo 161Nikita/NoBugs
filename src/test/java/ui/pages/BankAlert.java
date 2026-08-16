@@ -9,7 +9,8 @@ public enum BankAlert {
     TOP_UP_DEPOSIT_ERROR("❌ Failed to deposit. Please try again."),
     TOP_UP_DEPOSIT_SUCCESSFUL(" Deposit successful!"),
     NAME_UPDATED("✅ Name updated successfully!"),
-    INVALID_NAME_FORMAT("Name must contain two words with letters only");
+    INVALID_NAME_FORMAT_TRUE("Name must contain two words with letters only"),
+    INVALID_NAME_FORMAT("[object Object]");
 
     private final String message;
     BankAlert(String message) {

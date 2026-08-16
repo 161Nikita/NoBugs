@@ -2,9 +2,12 @@ package ui;
 
 import com.codeborne.selenide.Configuration;
 import com.codeborne.selenide.Selenide;
+import com.codeborne.selenide.logevents.SelenideLogger;
+import common.helpers.StepLogger;
 import extensions.BrowserMatchExtension;
 import extensions.UserSessionExtension;
 import api.BaseTest;
+import io.qameta.allure.selenide.AllureSelenide;
 import models.CreateUserRequest;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +17,7 @@ import specs.RequestSpecs;
 import java.util.Map;
 
 import static com.codeborne.selenide.Selenide.executeJavaScript;
+
 @ExtendWith(UserSessionExtension.class)
 @ExtendWith(BrowserMatchExtension.class)
 public class BaseUiTest extends BaseTest {
@@ -27,6 +31,7 @@ public class BaseUiTest extends BaseTest {
         Configuration.browserVersion = configs.Config.getProperty("browserVersion");
 
         Configuration.browserSize = configs.Config.getProperty("browserSize");
+        SelenideLogger.addListener("AllureSelenide", new AllureSelenide());
 
         DesiredCapabilities capabilities = new DesiredCapabilities();
         capabilities.setCapability("selenoid:options", Map.of(
@@ -37,16 +42,22 @@ public class BaseUiTest extends BaseTest {
     }
 
     public static void authAsUser(String username, String password) {
-        Selenide.open("/dashboard");
+        StepLogger.log("Открыть стартовую страницу приложения для авторизации", () -> {
+            Selenide.open("/");
+            return null;
+        });
         // Получаем токен авторизации
         String userAuthHeader = RequestSpecs.getUserAuthHeader(username, password);
         // Прописываем токен в память localStorage текущей страницы
         executeJavaScript(
                 "localStorage.setItem('authToken', arguments[0]);", userAuthHeader);
-        Selenide.open("/dashboard");
+        StepLogger.log("Переход в личный кабинет (Дашборд)", () -> {
+            Selenide.open("/dashboard");
+            return null;
+        });
     }
 
     public static void authAsUser(CreateUserRequest createUserRequest) {
-        authAsUser(createUserRequest.getUsername(),createUserRequest.getPassword());
+        authAsUser(createUserRequest.getUsername(), createUserRequest.getPassword());
     }
 }

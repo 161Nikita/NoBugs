@@ -3,6 +3,7 @@ package ui.pages;
 import com.codeborne.selenide.Condition;
 import com.codeborne.selenide.Selectors;
 import com.codeborne.selenide.SelenideElement;
+import common.helpers.StepLogger;
 
 import static com.codeborne.selenide.Selenide.$;
 
@@ -20,34 +21,47 @@ public class TransferPage extends BasePage<TransferPage> {
     }
 
     public TransferPage selectSourceAccount(String accountNumber) {
-        sourceAccountSelector
-                .shouldBe(Condition.visible)
-                .selectOptionContainingText(accountNumber);
-        return this;
+        return StepLogger.log("Выбор счета списания: " + accountNumber, () -> {
+            sourceAccountSelector
+                    .shouldBe(Condition.visible)
+                    .selectOptionContainingText(accountNumber);
+            return this;
+        });
     }
 
     public TransferPage enterRecipientDetails(String name, String accountNumber) {
-        recipientNameInput.setValue(name);
-        recipientAccountInput.setValue(accountNumber);
-        return this;
+        return StepLogger.log("Ввод данных получателя: " + name + " (Счет: " + accountNumber + ")", () -> {
+            recipientNameInput.setValue(name);
+            recipientAccountInput.setValue(accountNumber);
+            return this;
+        });
     }
 
     public TransferPage enterAmount(double amount) {
-        amountInput.setValue(String.valueOf(amount));
-        return this;
+        return StepLogger.log("Ввод суммы перевода: " + amount, () -> {
+            amountInput.setValue(String.valueOf(amount));
+            return this;
+        });
     }
 
     public TransferPage confirmCheckbox() {
-        confirmCheckbox.click();
-        return this;
+        return StepLogger.log("Активация чекбокса подтверждения перевода", () -> {
+            confirmCheckbox.click();
+            return this;
+        });
     }
 
     public TransferPage clickSubmit() {
-        submitButton.click();
-        return this;
+        return StepLogger.log("Нажатие кнопки подтверждения перевода 'Transfer'", () -> {
+            submitButton.click();
+            return this;
+        });
     }
 
     public void verifyTransferFormIsStillActive() {
-        submitButton.shouldBe(Condition.visible, Condition.enabled);
+        StepLogger.log("Проверка, что форма перевода активна и кнопка отправки доступна", () -> {
+            submitButton.shouldBe(Condition.visible, Condition.enabled);
+            return null;
+        });
     }
 }

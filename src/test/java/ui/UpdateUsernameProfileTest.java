@@ -19,6 +19,7 @@ public class UpdateUsernameProfileTest extends BaseUiTest {
                 .enterNewName(randomName)
                 .clickSave()
                 .checkAlertMessageAndAccept(BankAlert.NAME_UPDATED)
+                .clickHome()
                 .verifyUpdatedName(randomName);
     }
 
