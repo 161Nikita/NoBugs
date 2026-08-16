@@ -22,20 +22,20 @@ jobs: # аналог этапов
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys:
+          restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Set up services
-        run: bash infra/docker_compose/restart_docker.sh
-
+      # устанавливаем утилиту jq
       - name: Install jq on CI runner
         run: sudo apt-get update && sudo apt-get install -y jq
 
+      # Этот шаг заходит в нужную папку, запускает скрипт и возвращается назад
       - name: Set up services
         run: cd infra/docker_compose && bash restart_docker.sh && cd ../..
 
+      # Финальный шаг запуска тестов с переменными окружения
       - name: Run tests
         run: ./mvnw clean test -q
         env:
-            APIBASEURL: http://localhost:4111
-            UIBASEURL: http://frontend
+          APIBASEURL: http://localhost:4111
+          UIBASEURL: http://frontend
