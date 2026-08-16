@@ -8,15 +8,16 @@ echo ">>> Docker pull все образы браузеров"
 # Путь до файла
 json_file="./config/browsers.json"
 
-# Проверяем, что jq установлен
-# if ! command -v jq &> /dev/null; then
-#     echo "X jq is not installed. Please install jq and try again."
-#     exit 1
-# fi
+# Проверяем, что jq установлен локально в этой папке
+if [ ! -f "./jq.exe" ]; then
+    echo "X jq is not installed. Please install jq and try again."
+    exit 1
+fi
 
 
-# Извлекаем все значения .image через jq
-images=$(./jq.exe -r '.. | objects | select(.image) | .image' "$json_file")
+# Извлекаем все значения .image через локальный jq
+# ИСПРАВЛЕНО: добавили ./ и .exe
+images=$(./jq.exe -r '.. | objects | select(.image) | .image' "$json_file" | tr -d '\r')
 
 # Пробегаем по каждому образу и выполняем docker pull
 for image in $images; do
@@ -25,4 +26,4 @@ for image in $images; do
 done
 
 echo ">>> Запуск Docker Compose"
-docker compose up
+docker compose up -d
