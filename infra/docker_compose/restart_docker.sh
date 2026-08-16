@@ -8,16 +8,12 @@ echo ">>> Docker pull все образы браузеров"
 # Путь до файла
 json_file="./config/browsers.json"
 
-# Проверяем, что jq установлен локально в этой папке
-if [ ! -f "./jq.exe" ]; then
-    echo "X jq is not installed. Please install jq and try again."
-    exit 1
+# Проверяем, как установлен jq: глобально (в CI Linux) или локально (на Windows)
+if command -v jq &> /dev/null; then
+    images=$(jq -r '.. | objects | select(.image) | .image' "$json_file" | tr -d '\r')
+else
+    images=$(./jq.exe -r '.. | objects | select(.image) | .image' "$json_file" | tr -d '\r')
 fi
-
-
-# Извлекаем все значения .image через локальный jq
-# ИСПРАВЛЕНО: добавили ./ и .exe
-images=$(./jq.exe -r '.. | objects | select(.image) | .image' "$json_file" | tr -d '\r')
 
 # Пробегаем по каждому образу и выполняем docker pull
 for image in $images; do
