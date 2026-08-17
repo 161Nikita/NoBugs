@@ -126,4 +126,19 @@ public class UserDepositTest extends BaseTest {
                 .build());
     }
 
+    @Test
+    public void getLoginError400Test() {
+        io.restassured.specification.RequestSpecification cleanSpec = io.restassured.RestAssured.given()
+                .baseUri("http://localhost:4111")
+                .contentType(io.restassured.http.ContentType.JSON);
+
+        new CrudRequester(
+                cleanSpec,
+                Endpoint.LOGIN,
+                new io.restassured.builder.ResponseSpecBuilder().build()
+        ).post(models.LoginUserRequest.builder()
+                .username("anyUser")
+                .password("")
+                .build());
+    }
 }
