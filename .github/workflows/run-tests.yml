@@ -85,33 +85,34 @@ jobs:
             echo "Внимание: Файл swagger-coverage-result.json не найден, пропускаем gate."
           fi
 
-            # 7. Раскладываем отчеты строго по папкам из ДЗ: test-report/{номер_пайплайна}/...
+        # 7. Раскладываем отчеты строго по папкам из ДЗ: test-report/{номер_пайплайна}/...
       - name: Prepare Report Directory Structure
         if: always()
         run: |
-          mkdir -p public/test-report/${{ github.run_number }}/allure-report
-          mkdir -p public/test-report/${{ github.run_number }}/swagger-coverage
-
-          # Копируем сгенерированный Allure Report
+          # Обязательно берем пути в кавычки, чтобы Linux создал вложенные папки, а не одну папку со слэшем в имени
+          mkdir -p "public/test-report/${{ github.run_number }}/allure-report"
+          mkdir -p "public/test-report/${{ github.run_number }}/swagger-coverage"
+          
+          # Копируем Allure Report
           if [ -d target/allure-report ]; then
-            cp -r target/allure-report/* public/test-report/${{ github.run_number }}/allure-report/
+            cp -r target/allure-report/* "public/test-report/${{ github.run_number }}/allure-report/"
           fi
-
+          
           # Копируем HTML-отчет Swagger
           SWAGGER_HTML=$(find target -name "swagger-coverage-report.html" -print -quit)
           if [ -f "$SWAGGER_HTML" ]; then
-            cp "$SWAGGER_HTML" public/test-report/${{ github.run_number }}/swagger-coverage/index.html
+            cp "$SWAGGER_HTML" "public/test-report/${{ github.run_number }}/swagger-coverage/index.html"
           elif [ -f swagger-coverage-report.html ]; then
-            cp swagger-coverage-report.html public/test-report/${{ github.run_number }}/swagger-coverage/index.html
+            cp swagger-coverage-report.html "public/test-report/${{ github.run_number }}/swagger-coverage/index.html"
           fi
-
+          
           # Копируем JSON покрытия
           if [ -f target/swagger-coverage-output/swagger-coverage-result.json ]; then
-            cp target/swagger-coverage-output/swagger-coverage-result.json public/test-report/${{ github.run_number }}/swagger-coverage/
+            cp target/swagger-coverage-output/swagger-coverage-result.json "public/test-report/${{ github.run_number }}/swagger-coverage/"
           fi
 
-          # Создаем корневой index.html для автоматического редиректа на свежий Allure-отчет
-          echo '<meta http-equiv="refresh" content="0; url=test-report/'${{ github.run_number }}'/allure-report/index.html">' > public/index.html
+          # Создаем правильный корневой редирект
+          echo '<meta http-equiv="refresh" content="0; url=/NoBugs/test-report/'${{ github.run_number }}'/allure-report/index.html">' > public/index.html
 
       # 8. Публикация в GitHub Pages
       - name: Publish test report
