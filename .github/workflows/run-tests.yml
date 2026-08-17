@@ -1,15 +1,14 @@
-name: Build and Push Test Docker Image
+name: Build, Run Tests and Deploy Reports
 
-# Настраиваем триггер строго на изменения в папке src
 on:
   push:
     paths:
       - 'src/**'
-  workflow_dispatch: # Оставляем ручной запуск для отладки
+  workflow_dispatch:
 
 jobs:
-  build-and-push:
-    name: Build, Checkstyle and Push to Docker Hub
+  build-and-test:
+    name: Run Automation Pipeline
     runs-on: ubuntu-latest
 
     steps:
@@ -21,73 +20,80 @@ jobs:
         with:
           distribution: 'corretto'
           java-version: '21'
+          cache: 'maven'
 
-      # Выставляем права на запуск mvnw
       - name: Permission for maven wrapper
         run: chmod +x mvnw
 
-      # Шаг сборки проекта и автоматической проверки Checkstyle
-      - name: Build project and Run Checkstyle
-        run: ./mvnw clean compile checkstyle:check
+      - name: Start Infrastructure via Docker Compose
+        run: |
+          cd infra/docker_compose
+          sed -i 's|nobugsme/nbank:preprod_version|nobugsme/nbank:with_validation_fix_with_swagger|g' docker-compose.yml
+          docker compose up -d
+          sleep 15
+          docker compose ps
 
-      # Авторизация в вашем личном аккаунте Docker Hub
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Run Tests 5 Times
+        run: |
+          for i in {1..5}; do
+            echo "============================================="
+            echo "ЗАПУСК АВТОТЕСТОВ: ИТЕРАЦИЯ №$i"
+            echo "============================================="
+            ./mvnw clean test -DbaseUrl=http://localhost:4111 -DuiUrl=http://localhost:3000
+          done
 
-      # Извлекаем хэш коммита для тега
-      - name: Get short commit SHA
-        id: vars
-        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-
-      # Сборка Docker-образа автотестов с передачей аргументов из Dockerfile
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          # Передаем дефолтные аргументы, которые прописаны в Dockerfile
-          build-args: |
-            APIBASEURL=http://localhost:4111
-            UIBASEURL=http://localhost:3000
-          # Тег равен хэшу коммита
-          tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nbank-tests:${{ steps.vars.outputs.sha_short }}
-
-      - name: Run Swagger coverage
+      - name: Run Swagger coverage CLI
         if: always()
-        run: .swagger-coverage-commandline/bin/swagger-coverage-commandline -s http://localhost:4111/v3/api-docs -i target/swagger-coverage-output
+        run: |
+          chmod +x .swagger-coverage-commandline/bin/swagger-coverage-commandline
+          .swagger-coverage-commandline/bin/swagger-coverage-commandline -s http://localhost:4111/v3/api-docs -i target/swagger-coverage-output
 
-      - name: Load test report history
-        uses: actions/checkout@v2
+      - name: Install Allure CLI
         if: always()
-        with:
-          ref: gh-pages
-          path: gh-pages
+        run: |
+          sudo wget https://github.com
+          sudo tar -zxf allure-2.24.1.tgz -C /opt/
+          sudo ln -s /opt/allure-2.24.1/bin/allure /usr/bin/allure
+          allure --version
 
-      - name: Build test report
-        uses: simple-elf/allure-report-action@v1.7
+      - name: Generate Allure Report
         if: always()
-        with:
-          gh_pages: gh-pages
-          allure_results: target/allure-results
-          allure_history: allure-history
+        run: allure generate target/allure-results --clean -o target/allure-report
 
-      - name: Build Swagger coverage report
+      - name: Check Swagger Quality Gate
         if: always()
-        run: sudo cp swagger-coverage-report.html allure-history/${{ github.run_number }}
+        run: |
+          COVERAGE=$(jq '.coverage' target/swagger-coverage-output/swagger-coverage-result.json)
+          echo "============================================="
+          echo "Текущее покрытие API по Swagger: $COVERAGE%"
+          echo "============================================="
+          if (( $(echo "$COVERAGE < 50" | bc -l) )); then
+            echo "Ошибка: Quality Gate не пройден! Покрытие API ($COVERAGE%) ниже необходимых 50%."
+            exit 1
+          fi
 
-      - name: Publish test report
+      - name: Prepare Report Directory Structure
+        if: always()
+        run: |
+          mkdir -p public/test-report/${{ github.run_number }}/allure-report
+          mkdir -p public/test-report/${{ github.run_number }}/swagger-coverage
+          cp -r target/allure-report/* public/test-report/${{ github.run_number }}/allure-report/
+          if [ -f swagger-coverage-report.html ]; then
+            cp swagger-coverage-report.html public/test-report/${{ github.run_number }}/swagger-coverage/index.html
+          fi
+          cp target/swagger-coverage-output/swagger-coverage-result.json public/test-report/${{ github.run_number }}/swagger-coverage/
+
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         if: always()
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: gh-pages
-          publish_dir: allure-history
+          publish_dir: ./public
+          keep_files: true
 
       - name: Clean up services
         if: always()
-        run: cd infra/docker_compose && docker compose down
+        run: |
+          cd infra/docker_compose
+          docker compose down -v
