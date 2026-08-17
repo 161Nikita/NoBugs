@@ -125,14 +125,4 @@ public class UserDepositTest extends BaseTest {
                 .amount(RandomData.getAmountOverLimit())
                 .build());
     }
-    @Test
-    public void getCustomerAccountsCoverageTest() {
-        CreateUserRequest user = createAndAuthorizeUser();
-
-        new CrudRequester(
-                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                Endpoint.CUSTOMER_ACCOUNTS,
-                new io.restassured.builder.ResponseSpecBuilder().build()
-        ).get(0L);
-    }
 }

@@ -168,5 +168,23 @@ public class TransferringMoneyTest extends BaseTest {
                 .amount(RandomData.getAmount())
                 .build());
     }
+    @Test
+    public void getTransactionsCoverageTest() {
+        CreateUserRequest user = createAndAuthorizeUser();
+
+        long myAccountId = requests.skelethon.steps.AccountSteps.createAccount(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
+        ).getId();
+
+        io.restassured.RestAssured.given()
+                .baseUri("http://localhost:4111")
+                .spec(RequestSpecs.authAsUser(user.getUsername(), user.getPassword()))
+                .pathParam("accountId", myAccountId)
+                .when()
+                .get("/api/v1/accounts/{accountId}/transactions")
+                .then()
+                .statusCode(200);
+    }
+
 
 }
