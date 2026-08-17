@@ -86,4 +86,3 @@ public class UserDepositTest extends BaseTest {
         ).get(randomId);
     }
 }
-
