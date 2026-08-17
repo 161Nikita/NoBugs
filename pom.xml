@@ -125,9 +125,7 @@
             </dependency>
         </dependencies>
 
-        <!-- ТЕПЕРЬ ВСЯ МАГИЯ ТУТ: Профили изолированы друг от друга -->
         <profiles>
-            <!-- Включается САМ, если не переданы -Papi или -Pui -->
             <profile>
                 <id>default-all</id>
                 <activation>

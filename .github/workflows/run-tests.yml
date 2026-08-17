@@ -25,7 +25,6 @@ jobs:
       - name: Permission for tools
         run: |
           chmod +x mvnw
-          chmod +x .swagger-coverage-commandline/bin/swagger-coverage-commandline || true
 
       # 1. Находим docker-compose и поднимаем инфраструктуру
       - name: Start Infrastructure via Docker Compose
@@ -37,6 +36,13 @@ jobs:
           docker compose up -d
           sleep 15
 
+      # 1.5 Скачиваем и подготавливаем swagger-coverage-commandline 1.5.0
+      - name: Download and Install Swagger Coverage CLI
+        run: |
+          wget https://github.com/viclovsky/swagger-coverage/releases/download/1.5.0/swagger-coverage-commandline-1.5.0.zip
+          unzip swagger-coverage-commandline-1.5.0.zip -d .swagger-coverage-commandline
+          chmod +x .swagger-coverage-commandline/bin/swagger-coverage-commandline
+
       # 2. 5 прогонов тестов на localhost
       - name: Run Tests 5 Times
         run: |
@@ -45,20 +51,24 @@ jobs:
             ./mvnw clean test -DbaseUrl=http://localhost:4111 -DuiUrl=http://localhost:3000 || true
           done
 
-      # 3. Запуск локального Swagger Coverage из папки твоего проекта
+      # 3. Запуск Swagger Coverage CLI для генерации HTML и JSON результатов
       - name: Run Swagger coverage
         if: always()
         run: |
-          .swagger-coverage-commandline/bin/swagger-coverage-commandline -s http://localhost:4111/v3/api-docs -i target/swagger-coverage-output || true
+          if [ -d target/swagger-coverage-output ]; then
+            .swagger-coverage-commandline/bin/swagger-coverage-commandline -s http://localhost:4111/v3/api-docs -i target/swagger-coverage-output || true
+          else
+            echo "Папка target/swagger-coverage-output пуста или не существует. Проверяем генерацию..."
+          fi
 
-      # 4. Скачиваем официальный стабильный Allure CLI с полной ссылкой
+      # 4. Скачиваем официальный стабильный Allure CLI
       - name: Install Allure CLI
         if: always()
         run: |
           sudo npm install -g allure-commandline --unsafe-perm=true
           allure --version
 
-      # 5. Генерируем Allure Report из правильной папки target/allure-results
+      # 5. Генерируем Allure Report
       - name: Generate Allure Report
         if: always()
         run: |
@@ -85,33 +95,39 @@ jobs:
             echo "Внимание: Файл swagger-coverage-result.json не найден, пропускаем gate."
           fi
 
-        # 7. Раскладываем отчеты строго по папкам из ДЗ: test-report/{номер_пайплайна}/...
+      # 7. Раскладываем отчеты строго по папкам: test-report/{номер_пайплайна}/...
       - name: Prepare Report Directory Structure
         if: always()
         run: |
-          # Обязательно берем пути в кавычки, чтобы Linux создал вложенные папки, а не одну папку со слэшем в имени
+          # Создаем структуру под allure-report и общую папку текущего билда
           mkdir -p "public/test-report/${{ github.run_number }}/allure-report"
-          mkdir -p "public/test-report/${{ github.run_number }}/swagger-coverage"
           
           # Копируем Allure Report
           if [ -d target/allure-report ]; then
             cp -r target/allure-report/* "public/test-report/${{ github.run_number }}/allure-report/"
           fi
           
-          # Копируем HTML-отчет Swagger
-          SWAGGER_HTML=$(find target -name "swagger-coverage-report.html" -print -quit)
-          if [ -f "$SWAGGER_HTML" ]; then
-            cp "$SWAGGER_HTML" "public/test-report/${{ github.run_number }}/swagger-coverage/index.html"
-          elif [ -f swagger-coverage-report.html ]; then
-            cp swagger-coverage-report.html "public/test-report/${{ github.run_number }}/swagger-coverage/index.html"
+          # Копируем HTML-отчет Swagger прямо в папку билда рядом с allure-report
+          if [ -f swagger-coverage-report.html ]; then
+            cp swagger-coverage-report.html "public/test-report/${{ github.run_number }}/swagger-coverage-report.html"
+          elif [ -f target/swagger-coverage-report.html ]; then
+            cp target/swagger-coverage-report.html "public/test-report/${{ github.run_number }}/swagger-coverage-report.html"
+          else
+            # На случай, если утилита создала файл внутри вложенных директорий target
+            SWAGGER_HTML=$(find target -name "swagger-coverage-report.html" -print -quit)
+            if [ -n "$SWAGGER_HTML" ] && [ -f "$SWAGGER_HTML" ]; then
+              cp "$SWAGGER_HTML" "public/test-report/${{ github.run_number }}/swagger-coverage-report.html"
+            else
+              echo "Файл swagger-coverage-report.html не найден!"
+            fi
           fi
           
-          # Копируем JSON покрытия
+          # Копируем JSON покрытия в ту же папку (полезно для отладки Quality Gate)
           if [ -f target/swagger-coverage-output/swagger-coverage-result.json ]; then
-            cp target/swagger-coverage-output/swagger-coverage-result.json "public/test-report/${{ github.run_number }}/swagger-coverage/"
+            cp target/swagger-coverage-output/swagger-coverage-result.json "public/test-report/${{ github.run_number }}/"
           fi
 
-          # Создаем правильный корневой редирект
+          # Создаем корневой редирект на Allure
           echo '<meta http-equiv="refresh" content="0; url=/NoBugs/test-report/'${{ github.run_number }}'/allure-report/index.html">' > public/index.html
 
       # 8. Публикация в GitHub Pages
