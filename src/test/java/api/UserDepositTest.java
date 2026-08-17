@@ -22,7 +22,6 @@ public class UserDepositTest extends BaseTest {
         long accountId = requests.skelethon.steps.AccountSteps.createAccount(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
         ).getId();
-
         // Пополнение своего счета
         new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
@@ -75,6 +74,27 @@ public class UserDepositTest extends BaseTest {
     }
 
     @Test
+    public void getError401UnauthorizedTest() {
+        io.restassured.specification.ResponseSpecification unauthorizedSpec =
+                new io.restassured.builder.ResponseSpecBuilder()
+                        .expectStatusCode(org.apache.http.HttpStatus.SC_UNAUTHORIZED)
+                        .build();
+
+        io.restassured.specification.RequestSpecification badAuthSpec = io.restassured.RestAssured.given()
+                .baseUri("http://localhost:4111")
+                .header("Authorization", "Bearer " + java.util.UUID.randomUUID().toString());
+
+        new CrudRequester(
+                badAuthSpec,
+                Endpoint.USER_TOP_UP_ACCOUNT,
+                unauthorizedSpec
+        ).post(UserTopUpAccountRequest.builder()
+                .accountId(1L)
+                .amount(RandomData.getAmount())
+                .build());
+    }
+
+    @Test
     public void getError403ForbiddenTest() {
         CreateUserRequest user = createAndAuthorizeUser();
 
@@ -107,7 +127,3 @@ public class UserDepositTest extends BaseTest {
     }
 
 }
-
-
-
-
