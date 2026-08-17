@@ -39,8 +39,9 @@ jobs:
       # 1.5 Скачиваем и подготавливаем swagger-coverage-commandline 1.5.0
       - name: Download and Install Swagger Coverage CLI
         run: |
-          wget https://github.com/viclovsky/swagger-coverage/releases/download/1.5.0/swagger-coverage-commandline-1.5.0.zip
-          unzip swagger-coverage-commandline-1.5.0.zip -d .swagger-coverage-commandline
+          wget https://github.com/viclovsky/swagger-coverage/releases/download/1.5.0/swagger-coverage-1.5.0.zip
+          unzip swagger-coverage-1.5.0.zip
+          mv swagger-coverage-1.5.0 .swagger-coverage-commandline
           chmod +x .swagger-coverage-commandline/bin/swagger-coverage-commandline
 
       # 2. 5 прогонов тестов на localhost
@@ -99,7 +100,7 @@ jobs:
       - name: Prepare Report Directory Structure
         if: always()
         run: |
-          # Создаем структуру под allure-report и общую папку текущего билда
+          # Создаем структуру под allure-report
           mkdir -p "public/test-report/${{ github.run_number }}/allure-report"
           
           # Копируем Allure Report
@@ -113,12 +114,16 @@ jobs:
           elif [ -f target/swagger-coverage-report.html ]; then
             cp target/swagger-coverage-report.html "public/test-report/${{ github.run_number }}/swagger-coverage-report.html"
           else
-            # На случай, если утилита создала файл внутри вложенных директорий target
-            SWAGGER_HTML=$(find target -name "swagger-coverage-report.html" -print -quit)
-            if [ -n "$SWAGGER_HTML" ] && [ -f "$SWAGGER_HTML" ]; then
-              cp "$SWAGGER_HTML" "public/test-report/${{ github.run_number }}/swagger-coverage-report.html"
+            # Безопасный поиск: если папки target нет, find не уронит шаг с ошибкой благодаря проверке директории
+            if [ -d target ]; then
+              SWAGGER_HTML=$(find target -name "swagger-coverage-report.html" -print -quit)
+              if [ -n "$SWAGGER_HTML" ] && [ -f "$SWAGGER_HTML" ]; then
+                cp "$SWAGGER_HTML" "public/test-report/${{ github.run_number }}/swagger-coverage-report.html"
+              else
+                echo "Файл swagger-coverage-report.html не найден!"
+              fi
             else
-              echo "Файл swagger-coverage-report.html не найден!"
+              echo "Директория target не существует, Swagger HTML скопировать невозможно."
             fi
           fi
           
