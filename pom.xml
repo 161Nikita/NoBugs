@@ -117,6 +117,12 @@
                 <version>${aspectj.version}</version>
                 <scope>test</scope>
             </dependency>
+            <!-- Swagger Coverage -->
+            <dependency>
+                <groupId>com.github.viclovsky</groupId>
+                <artifactId>swagger-coverage-rest-assured</artifactId>
+                <version>1.5.0</version>
+            </dependency>
         </dependencies>
 
         <!-- ТЕПЕРЬ ВСЯ МАГИЯ ТУТ: Профили изолированы друг от друга -->
