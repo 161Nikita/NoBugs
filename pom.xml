@@ -2,7 +2,7 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+        <modelVersion>4.0.0</modelVersion>
         <groupId>nikita.ru</groupId>
         <artifactId>no-bugs</artifactId>
         <version>1.0-SNAPSHOT</version>
@@ -119,54 +119,31 @@
             </dependency>
         </dependencies>
 
+        <!-- ТЕПЕРЬ ВСЯ МАГИЯ ТУТ: Профили изолированы друг от друга -->
         <profiles>
+            <!-- Включается САМ, если не переданы -Papi или -Pui -->
             <profile>
-                <id>api</id>
+                <id>default-all</id>
                 <activation>
                     <activeByDefault>true</activeByDefault>
                 </activation>
-                <build>
-                    <plugins>
-                        <plugin>
-                            <groupId>org.apache.maven.plugins</groupId>
-                            <artifactId>maven-surefire-plugin</artifactId>
-                            <version>${maven-surefire-plugin.version}</version>
-                            <configuration>
-                                <includes>
-                                    <include>**/api/**/*Test.java</include>
-                                </includes>
-                                <argLine>
-                                    -javaagent:"${org.aspectj:aspectjweaver:jar}"
-                                    --add-opens java.base/java.lang=ALL-UNNAMED
-                                    --add-opens java.base/java.util=ALL-UNNAMED
-                                </argLine>
-                            </configuration>
-                        </plugin>
-                    </plugins>
-                </build>
+                <properties>
+                    <testInclude>**/api/**/*Test.java, **/ui/**/*Test.java</testInclude>
+                </properties>
+            </profile>
+
+            <profile>
+                <id>api</id>
+                <properties>
+                    <testInclude>**/api/**/*Test.java</testInclude>
+                </properties>
             </profile>
 
             <profile>
                 <id>ui</id>
-                <build>
-                    <plugins>
-                        <plugin>
-                            <groupId>org.apache.maven.plugins</groupId>
-                            <artifactId>maven-surefire-plugin</artifactId>
-                            <version>${maven-surefire-plugin.version}</version>
-                            <configuration>
-                                <includes>
-                                    <include>**/ui/**/*Test.java</include>
-                                </includes>
-                                <argLine>
-                                    -javaagent:"${org.aspectj:aspectjweaver:jar}"
-                                    --add-opens java.base/java.lang=ALL-UNNAMED
-                                    --add-opens java.base/java.util=ALL-UNNAMED
-                                </argLine>
-                            </configuration>
-                        </plugin>
-                    </plugins>
-                </build>
+                <properties>
+                    <testInclude>**/ui/**/*Test.java</testInclude>
+                </properties>
             </profile>
         </profiles>
 
@@ -187,16 +164,41 @@
                     </executions>
                 </plugin>
 
+                <!-- ГЛАВНЫЙ ЕДИНЫЙ ПЛАГИН СУРФАЙР -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <version>${maven-surefire-plugin.version}</version>
+                    <configuration>
+                        <includes>
+                            <!-- Забирает значение строго из АКТИВНОГО в данный момент профиля -->
+                            <include>${testInclude}</include>
+                        </includes>
+                        <excludes>
+                            <exclude>**/BaseTest.java</exclude>
+                            <exclude>**/BaseUITest.java</exclude>
+                        </excludes>
+                        <argLine>
+                            -javaagent:"${org.aspectj:aspectjweaver:jar}"
+                            --add-opens java.base/java.lang=ALL-UNNAMED
+                            --add-opens java.base/java.util=ALL-UNNAMED
+                        </argLine>
+                    </configuration>
+                </plugin>
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-report-plugin</artifactId>
                     <version>3.5.0</version>
                 </plugin>
+
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-wrapper-plugin</artifactId>
                     <version>3.3.0</version>
                 </plugin>
+
+                <!-- ПЛАГИН КОМПИЛЯТОРА С НАСТРОЙКАМИ LOMBOK -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
@@ -218,6 +220,8 @@
                         </compilerArgs>
                     </configuration>
                 </plugin>
+
+                <!-- ПЛАГИН CHECKSTYLE -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-checkstyle-plugin</artifactId>
@@ -238,7 +242,8 @@
                         </execution>
                     </executions>
                 </plugin>
-                <!-- Плагин для сборки отчетов Allure -->
+
+                <!-- ПЛАГИН ALLURE MAVEN -->
                 <plugin>
                     <groupId>io.qameta.allure</groupId>
                     <artifactId>allure-maven</artifactId>
