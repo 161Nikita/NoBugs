@@ -51,14 +51,11 @@ jobs:
         run: |
           .swagger-coverage-commandline/bin/swagger-coverage-commandline -s http://localhost:4111/v3/api-docs -i target/swagger-coverage-output || true
 
-      # 4. Скачиваем официальный стабильный Allure CLI (без использования сторонних экшенов)
+      # 4. Скачиваем официальный стабильный Allure CLI с полной ссылкой
       - name: Install Allure CLI
         if: always()
         run: |
-          curl -L -o allure.zip https://github.com
-          unzip allure.zip
-          sudo mv allure-2.24.1 /opt/allure
-          sudo ln -s /opt/allure/bin/allure /usr/bin/allure
+          sudo npm install -g allure-commandline --unsafe-perm=true
           allure --version
 
       # 5. Генерируем Allure Report из результатов
