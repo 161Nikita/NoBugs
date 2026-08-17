@@ -74,6 +74,3 @@ public class UserDepositTest extends BaseTest {
                 .build());
     }
 }
-
-
-
