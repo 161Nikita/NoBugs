@@ -36,7 +36,7 @@ jobs:
           docker compose up -d
           sleep 15
 
-        # 1.5 Скачиваем и подготавливаем swagger-coverage-commandline 1.5.0
+      # 1.5 Скачиваем и подготавливаем swagger-coverage-commandline 1.5.0
       - name: Download and Install Swagger Coverage CLI
         run: |
           wget https://github.com/viclovsky/swagger-coverage/releases/download/1.5.0/swagger-coverage-1.5.0.zip
@@ -55,13 +55,12 @@ jobs:
       - name: Run Tests 5 Times
         run: |
           # 1. Сначала запускаем только API-тесты 5 раз подряд (без clean, чтобы Swagger копил покрытие)
-          # Флаг -Dtest=api.** заставит Maven гонять только быстрые API тесты
           for i in {1..5}; do
             echo "ЗАПУСК API АВТОТЕСТОВ: ИТЕРАЦИЯ №$i"
             ./mvnw test -Dtest=api.** -DbaseUrl=http://localhost:4111 -DuiUrl=http://localhost:3000 || true
           done
-
-      # 2. В самом конце запускаем UI-тесты всего 1 раз, чтобы они прошли на чистой и стабильной системе
+          
+          # 2. В самом конце запускаем UI-тесты всего 1 раз, чтобы они прошли на чистой и стабильной системе
           echo "ЗАПУСК UI АВТОТЕСТОВ"
           ./mvnw test -Dtest=ui.** -DbaseUrl=http://localhost:4111 -DuiUrl=http://localhost:3000 || true
 
@@ -94,7 +93,7 @@ jobs:
             echo "Папка с результатами Allure не найдена!"
           fi
 
-      # 6. Настройка Quality Gate по Swagger
+      # 6. Настройка Quality Gate по Swagger (Порог изменен на 30% по ТЗ вашей домашки)
       - name: Check Swagger Quality Gate
         if: always()
         run: |
@@ -102,23 +101,22 @@ jobs:
             COVERAGE=$(jq '.coverage' target/swagger-coverage-output/swagger-coverage-result.json)
             echo "Текущее покрытие API по Swagger: $COVERAGE%"
             if (( $(echo "$COVERAGE < 30" | bc -l) )); then
-              echo "Ошибка: Покрытие API ($COVERAGE%) ниже необходимых 50%."
+              echo "Ошибка: Покрытие API ($COVERAGE%) ниже необходимых 30%."
               exit 1
             fi
           else
             echo "Внимание: Файл swagger-coverage-result.json не найден, пропускаем gate."
           fi
 
-      # 7.
+      # 7. Раскладываем отчеты строго по папкам из ДЗ: test-report/{номер_пайплайна}/...
       - name: Prepare Report Directory Structure
         if: always()
         run: |
-          # Создаем базовые директории строго по ТЗ
           BUILD_DIR="public/test-report/${{ github.run_number }}"
           mkdir -p "$BUILD_DIR/allure-report"
           mkdir -p "$BUILD_DIR/swagger-coverage"
           
-          # 1. Копируем Allure Report
+          # Копируем Allure Report
           if [ -d target/allure-report ]; then
             cp -r target/allure-report/* "$BUILD_DIR/allure-report/"
             echo "Allure-отчет успешно скопирован."
@@ -126,7 +124,7 @@ jobs:
             echo "<h1>Allure Report не был сгенерирован</h1>" > "$BUILD_DIR/allure-report/index.html"
           fi
           
-          # 2. Копируем HTML-отчет Swagger как index.html внутрь папки swagger-coverage
+          # Копируем HTML-отчет Swagger как index.html внутрь папки swagger-coverage
           if [ -f swagger-coverage-report.html ]; then
             cp swagger-coverage-report.html "$BUILD_DIR/swagger-coverage/index.html"
             echo "Swagger-отчет скопирован из корня как index.html"
@@ -145,11 +143,11 @@ jobs:
             echo "<h1>Swagger Coverage Report не сгенерирован (нет target)</h1>" > "$BUILD_DIR/swagger-coverage/index.html"
           fi
           
-          # 3. Копируем JSON покрытия в папку swagger-coverage для работы Quality Gate
+          # Копируем JSON покрытия в папку swagger-coverage
           if [ -f target/swagger-coverage-output/swagger-coverage-result.json ]; then
             cp target/swagger-coverage-output/swagger-coverage-result.json "$BUILD_DIR/swagger-coverage/"
           fi
-          
+
           # Создаем корневой редирект на Allure текущего билда
           echo '<meta http-equiv="refresh" content="0; url=/NoBugs/test-report/'${{ github.run_number }}'/allure-report/index.html">' > public/index.html
 
