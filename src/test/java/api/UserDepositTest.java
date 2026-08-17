@@ -75,16 +75,37 @@ public class UserDepositTest extends BaseTest {
     }
 
     @Test
-    public void coverageCustomerProfileGetTest() {
+    public void getError403ForbiddenTest() {
         CreateUserRequest user = createAndAuthorizeUser();
-        long randomId = RandomData.getNonExistentAccountId();
 
         new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
-                Endpoint.UPDATE_PROFILE,
-                ResponseSpecs.requestReturnsOK()
-        ).get(randomId);
+                Endpoint.USER_TOP_UP_ACCOUNT,
+                ResponseSpecs.requestReturnsForbidden(ErrorMessages.UNAUTHORIZED_ACCOUNT_ACCESS)
+        ).post(UserTopUpAccountRequest.builder()
+                .accountId(RandomData.getNonExistentAccountId())
+                .amount(RandomData.getAmount())
+                .build());
     }
+
+    @Test
+    public void getError400BadRequestTest() {
+        CreateUserRequest user = createAndAuthorizeUser();
+
+        long myAccountId = requests.skelethon.steps.AccountSteps.createAccount(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
+        ).getId();
+
+        new CrudRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                Endpoint.USER_TOP_UP_ACCOUNT,
+                ResponseSpecs.requestReturnsBadRequest(ErrorMessages.DEPOSIT_EXCEEDS_LIMIT)
+        ).post(UserTopUpAccountRequest.builder()
+                .accountId(myAccountId)
+                .amount(RandomData.getAmountOverLimit())
+                .build());
+    }
+
 }
 
 

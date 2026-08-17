@@ -153,4 +153,20 @@ public class TransferringMoneyTest extends BaseTest {
                 .amount(invalidTransferAmount)
                 .build());
     }
+
+    @Test
+    public void getTransferError403ForbiddenTest() {
+        CreateUserRequest user = createAndAuthorizeUser();
+
+        new CrudRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                Endpoint.USER_TRANSFER_ACCOUNT,
+                ResponseSpecs.requestReturnsForbidden(ErrorMessages.UNAUTHORIZED_ACCOUNT_ACCESS)
+        ).post(UserTransferAccountRequest.builder()
+                .senderAccountId(RandomData.getNonExistentAccountId())
+                .receiverAccountId(RandomData.getNonExistentAccountId())
+                .amount(RandomData.getAmount())
+                .build());
+    }
+
 }
