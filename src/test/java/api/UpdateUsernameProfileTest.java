@@ -53,4 +53,19 @@ public class UpdateUsernameProfileTest extends BaseTest {
                 .name("Krapivin")
                 .build());
     }
+    @Test
+    public void getProfileError401UnauthorizedTest() {
+        io.restassured.specification.RequestSpecification badAuthSpec = io.restassured.RestAssured.given()
+                .baseUri("http://localhost:4111")
+                .header("Authorization", "Bearer " + java.util.UUID.randomUUID().toString());
+
+        new CrudRequester(
+                badAuthSpec,
+                Endpoint.UPDATE_PROFILE,
+                new io.restassured.builder.ResponseSpecBuilder().build()
+        ).update(UpdateProfileRequest.builder()
+                .name("Nikita Krapivin")
+                .build());
+    }
+
 }
