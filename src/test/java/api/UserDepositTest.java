@@ -73,4 +73,16 @@ public class UserDepositTest extends BaseTest {
                 .amount(RandomData.getAmount())
                 .build());
     }
+
+    @Test
+    public void coverageCustomerProfileGetTest() {
+        CreateUserRequest user = createAndAuthorizeUser();
+        long randomId = RandomData.getNonExistentAccountId();
+
+        new CrudRequester(
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                Endpoint.UPDATE_PROFILE,
+                ResponseSpecs.requestReturnsOK()
+        ).get(randomId);
+    }
 }
