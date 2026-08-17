@@ -125,20 +125,14 @@ public class UserDepositTest extends BaseTest {
                 .amount(RandomData.getAmountOverLimit())
                 .build());
     }
-
     @Test
-    public void getLoginError400Test() {
-        io.restassured.specification.RequestSpecification cleanSpec = io.restassured.RestAssured.given()
-                .baseUri("http://localhost:4111")
-                .contentType(io.restassured.http.ContentType.JSON);
+    public void getCustomerAccountsCoverageTest() {
+        CreateUserRequest user = createAndAuthorizeUser();
 
         new CrudRequester(
-                cleanSpec,
-                Endpoint.LOGIN,
+                RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
+                Endpoint.CUSTOMER_ACCOUNTS,
                 new io.restassured.builder.ResponseSpecBuilder().build()
-        ).post(models.LoginUserRequest.builder()
-                .username("anyUser")
-                .password("")
-                .build());
+        ).get(0L);
     }
 }
