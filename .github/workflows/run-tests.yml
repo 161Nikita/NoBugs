@@ -44,22 +44,31 @@ jobs:
           mv swagger-coverage-commandline-1.5.0 .swagger-coverage-commandline
           chmod +x .swagger-coverage-commandline/bin/swagger-coverage-commandline
 
-      # 2. 5 прогонов тестов на localhost
+      # Сохраняем спецификацию Swagger, пока контейнеры только поднялись и точно работают
+      - name: Save Swagger OpenAPI Spec
+        run: |
+          mkdir -p target-spec
+          curl -s http://localhost:4111/v3/api-docs > target-spec/swagger-openapi.json
+          echo "Спецификация API успешно сохранена в файл."
+
+      # 2. 5 прогонов тестов на localhost (ВНИМАНИЕ: убрали clean из внутренних итераций, чтобы не стирать swagger-результаты!)
       - name: Run Tests 5 Times
         run: |
+          # Делаем один clean в самом начале, чтобы очистить старое
+          ./mvnw clean compile
           for i in {1..5}; do
             echo "ЗАПУСК АВТОТЕСТОВ: ИТЕРАЦИЯ №$i"
-            ./mvnw clean test -DbaseUrl=http://localhost:4111 -DuiUrl=http://localhost:3000 || true
+            ./mvnw test -DbaseUrl=http://localhost:4111 -DuiUrl=http://localhost:3000 || true
           done
 
-      # 3. Запуск Swagger Coverage CLI для генерации HTML и JSON результатов
+      # 3. Запуск Swagger Coverage CLI (передаем сохраненный локальный файл вместо URL)
       - name: Run Swagger coverage
         if: always()
         run: |
           if [ -d target/swagger-coverage-output ]; then
-            .swagger-coverage-commandline/bin/swagger-coverage-commandline -s http://localhost:4111/v3/api-docs -i target/swagger-coverage-output || true
+            .swagger-coverage-commandline/bin/swagger-coverage-commandline -s target-spec/swagger-openapi.json -i target/swagger-coverage-output || true
           else
-            echo "Папка target/swagger-coverage-output пуста или не существует. Проверяем генерацию..."
+            echo "Папка target/swagger-coverage-output не найдена. Проверьте настройки библиотеки в Rest Assured."
           fi
 
       # 4. Скачиваем официальный стабильный Allure CLI
@@ -96,43 +105,49 @@ jobs:
             echo "Внимание: Файл swagger-coverage-result.json не найден, пропускаем gate."
           fi
 
-      # 7. Раскладываем отчеты строго по папкам: test-report/{номер_пайплайна}/...
+        # 7. Раскладываем отчеты строго по папкам: test-report/{номер_пайплайна}/...
       - name: Prepare Report Directory Structure
         if: always()
         run: |
-          # Создаем структуру под allure-report
-          mkdir -p "public/test-report/${{ github.run_number }}/allure-report"
+          # Создаем базовую директорию для текущего билда
+          BUILD_DIR="public/test-report/${{ github.run_number }}"
+          mkdir -p "$BUILD_DIR"
           
-          # Копируем Allure Report
+          # Копируем Allure Report целиком как папку, без использования звёздочки
           if [ -d target/allure-report ]; then
-            cp -r target/allure-report/* "public/test-report/${{ github.run_number }}/allure-report/"
-          fi
-          
-          # Копируем HTML-отчет Swagger прямо в папку билда рядом с allure-report
-          if [ -f swagger-coverage-report.html ]; then
-            cp swagger-coverage-report.html "public/test-report/${{ github.run_number }}/swagger-coverage-report.html"
-          elif [ -f target/swagger-coverage-report.html ]; then
-            cp target/swagger-coverage-report.html "public/test-report/${{ github.run_number }}/swagger-coverage-report.html"
+            cp -r target/allure-report "$BUILD_DIR/allure-report"
+            echo "Allure-отчет успешно скопирован."
           else
-            # Безопасный поиск: если папки target нет, find не уронит шаг с ошибкой благодаря проверке директории
-            if [ -d target ]; then
-              SWAGGER_HTML=$(find target -name "swagger-coverage-report.html" -print -quit)
-              if [ -n "$SWAGGER_HTML" ] && [ -f "$SWAGGER_HTML" ]; then
-                cp "$SWAGGER_HTML" "public/test-report/${{ github.run_number }}/swagger-coverage-report.html"
-              else
-                echo "Файл swagger-coverage-report.html не найден!"
-              fi
-            else
-              echo "Директория target не существует, Swagger HTML скопировать невозможно."
-            fi
+            echo "ВНИМАНИЕ: Папка target/allure-report не найдена!"
+            mkdir -p "$BUILD_DIR/allure-report"
+            echo "<h1>Allure Report не был сгенерирован в этой сборке</h1>" > "$BUILD_DIR/allure-report/index.html"
           fi
           
-          # Копируем JSON покрытия в ту же папку (полезно для отладки Quality Gate)
+          # Безопасный поиск и копирование HTML-отчета Swagger
+          if [ -f swagger-coverage-report.html ]; then
+            cp swagger-coverage-report.html "$BUILD_DIR/swagger-coverage-report.html"
+            echo "Swagger-отчет скопирован из корня."
+          elif [ -f target/swagger-coverage-report.html ]; then
+            cp target/swagger-coverage-report.html "$BUILD_DIR/swagger-coverage-report.html"
+            echo "Swagger-отчет скопирован из target."
+          elif [ -d target ]; then
+            SWAGGER_HTML=$(find target -name "swagger-coverage-report.html" -print -quit)
+            if [ -n "$SWAGGER_HTML" ] && [ -f "$SWAGGER_HTML" ]; then
+              cp "$SWAGGER_HTML" "$BUILD_DIR/swagger-coverage-report.html"
+              echo "Swagger-отчет найден через find и скопирован."
+            else
+              echo "<h1>Swagger Coverage Report не был сгенерирован в этой сборке</h1>" > "$BUILD_DIR/swagger-coverage-report.html"
+            fi
+          else
+            echo "<h1>Swagger Coverage Report не был сгенерирован (нет папки target)</h1>" > "$BUILD_DIR/swagger-coverage-report.html"
+          fi
+          
+          # Копируем JSON покрытия в ту же папку
           if [ -f target/swagger-coverage-output/swagger-coverage-result.json ]; then
-            cp target/swagger-coverage-output/swagger-coverage-result.json "public/test-report/${{ github.run_number }}/"
+            cp target/swagger-coverage-output/swagger-coverage-result.json "$BUILD_DIR/"
           fi
 
-          # Создаем корневой редирект на Allure
+          # Создаем корневой редирект на Allure текущего билда
           echo '<meta http-equiv="refresh" content="0; url=/NoBugs/test-report/'${{ github.run_number }}'/allure-report/index.html">' > public/index.html
 
       # 8. Публикация в GitHub Pages
