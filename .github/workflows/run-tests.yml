@@ -51,13 +51,27 @@ jobs:
           curl -s http://localhost:4111/v3/api-docs > target-spec/swagger-openapi.json
           echo "Спецификация API успешно сохранена в файл."
 
-      # 2. 5 прогонов тестов на localhost (ВНИМАНИЕ: убрали clean из внутренних итераций, чтобы не стирать swagger-результаты!)
-      - name: Run Tests 5 Times
+       # 2. 5 прогонов тестов на localhost с чистой базой данных перед каждым запуском
+      - name: Run Tests 5 Times with DB Reset
         run: |
-          # Делаем один clean в самом начале, чтобы очистить старое
+          # Находим директорию с docker-compose
+          COMPOSE_PATH=$(find . -name "docker-compose.yml" -print -quit)
+          COMPOSE_DIR=$(dirname "$COMPOSE_PATH")
+
+          # Очищаем maven один раз в самом начале
           ./mvnw clean compile
+
           for i in {1..5}; do
             echo "ЗАПУСК АВТОТЕСТОВ: ИТЕРАЦИЯ №$i"
+          
+            # Быстро перезапускаем контейнеры с флагом -v, чтобы полностью стереть базу данных и очистить её
+            cd "$COMPOSE_DIR"
+            docker compose down -v
+            docker compose up -d
+            sleep 10
+            cd - # Возвращаемся в корень проекта для запуска тестов
+          
+            # Запускаем тесты без флага clean, чтобы отчеты Swagger накапливались
             ./mvnw test -DbaseUrl=http://localhost:4111 -DuiUrl=http://localhost:3000 || true
           done
 
