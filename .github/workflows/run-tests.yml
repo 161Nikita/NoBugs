@@ -1,0 +1,58 @@
+name: Build and Push Test Docker Image
+
+# Настраиваем триггер строго на изменения в папке src
+on:
+  push:
+    paths:
+      - 'src/**'
+  workflow_dispatch: # Оставляем ручной запуск для отладки
+
+jobs:
+  build-and-push:
+    name: Build, Checkstyle and Push to Docker Hub
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: '21'
+
+      # Выставляем права на запуск mvnw
+      - name: Permission for maven wrapper
+        run: chmod +x mvnw
+
+      # Шаг сборки проекта и автоматической проверки Checkstyle
+      - name: Build project and Run Checkstyle
+        run: ./mvnw clean compile checkstyle:check
+
+      # Авторизация в вашем личном аккаунте Docker Hub
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Извлекаем хэш коммита для тега
+      - name: Get short commit SHA
+        id: vars
+        run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      # Сборка Docker-образа автотестов с передачей аргументов из Dockerfile
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          # Передаем дефолтные аргументы, которые прописаны в Dockerfile
+          build-args: |
+            APIBASEURL=http://localhost:4111
+            UIBASEURL=http://localhost:3000
+          # Тег равен хэшу коммита
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/nbank-tests:${{ steps.vars.outputs.sha_short }}
