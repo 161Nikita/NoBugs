@@ -105,48 +105,47 @@ jobs:
             echo "Внимание: Файл swagger-coverage-result.json не найден, пропускаем gate."
           fi
 
-        # 7. Раскладываем отчеты строго по папкам: test-report/{номер_пайплайна}/...
+      # 7. Раскладываем отчеты строго по папкам из ДЗ: test-report/{номер_пайплайна}/...
       - name: Prepare Report Directory Structure
         if: always()
         run: |
-          # Создаем базовую директорию для текущего билда
+          # Создаем базовые директории строго по ТЗ
           BUILD_DIR="public/test-report/${{ github.run_number }}"
-          mkdir -p "$BUILD_DIR"
+          mkdir -p "$BUILD_DIR/allure-report"
+          mkdir -p "$BUILD_DIR/swagger-coverage"
           
-          # Копируем Allure Report целиком как папку, без использования звёздочки
+          # 1. Копируем Allure Report
           if [ -d target/allure-report ]; then
-            cp -r target/allure-report "$BUILD_DIR/allure-report"
+            cp -r target/allure-report/* "$BUILD_DIR/allure-report/"
             echo "Allure-отчет успешно скопирован."
           else
-            echo "ВНИМАНИЕ: Папка target/allure-report не найдена!"
-            mkdir -p "$BUILD_DIR/allure-report"
-            echo "<h1>Allure Report не был сгенерирован в этой сборке</h1>" > "$BUILD_DIR/allure-report/index.html"
+            echo "<h1>Allure Report не был сгенерирован</h1>" > "$BUILD_DIR/allure-report/index.html"
           fi
           
-          # Безопасный поиск и копирование HTML-отчета Swagger
+          # 2. Копируем HTML-отчет Swagger как index.html внутрь папки swagger-coverage
           if [ -f swagger-coverage-report.html ]; then
-            cp swagger-coverage-report.html "$BUILD_DIR/swagger-coverage-report.html"
-            echo "Swagger-отчет скопирован из корня."
+            cp swagger-coverage-report.html "$BUILD_DIR/swagger-coverage/index.html"
+            echo "Swagger-отчет скопирован из корня как index.html"
           elif [ -f target/swagger-coverage-report.html ]; then
-            cp target/swagger-coverage-report.html "$BUILD_DIR/swagger-coverage-report.html"
-            echo "Swagger-отчет скопирован из target."
+            cp target/swagger-coverage-report.html "$BUILD_DIR/swagger-coverage/index.html"
+            echo "Swagger-отчет скопирован из target как index.html"
           elif [ -d target ]; then
             SWAGGER_HTML=$(find target -name "swagger-coverage-report.html" -print -quit)
             if [ -n "$SWAGGER_HTML" ] && [ -f "$SWAGGER_HTML" ]; then
-              cp "$SWAGGER_HTML" "$BUILD_DIR/swagger-coverage-report.html"
-              echo "Swagger-отчет найден через find и скопирован."
+              cp "$SWAGGER_HTML" "$BUILD_DIR/swagger-coverage/index.html"
+              echo "Swagger-отчет найден через find и скопирован как index.html"
             else
-              echo "<h1>Swagger Coverage Report не был сгенерирован в этой сборке</h1>" > "$BUILD_DIR/swagger-coverage-report.html"
+              echo "<h1>Swagger Coverage Report не найден</h1>" > "$BUILD_DIR/swagger-coverage/index.html"
             fi
           else
-            echo "<h1>Swagger Coverage Report не был сгенерирован (нет папки target)</h1>" > "$BUILD_DIR/swagger-coverage-report.html"
+            echo "<h1>Swagger Coverage Report не сгенерирован (нет target)</h1>" > "$BUILD_DIR/swagger-coverage/index.html"
           fi
           
-          # Копируем JSON покрытия в ту же папку
+          # 3. Копируем JSON покрытия в папку swagger-coverage для работы Quality Gate
           if [ -f target/swagger-coverage-output/swagger-coverage-result.json ]; then
-            cp target/swagger-coverage-output/swagger-coverage-result.json "$BUILD_DIR/"
+            cp target/swagger-coverage-output/swagger-coverage-result.json "$BUILD_DIR/swagger-coverage/"
           fi
-
+          
           # Создаем корневой редирект на Allure текущего билда
           echo '<meta http-equiv="refresh" content="0; url=/NoBugs/test-report/'${{ github.run_number }}'/allure-report/index.html">' > public/index.html
 
