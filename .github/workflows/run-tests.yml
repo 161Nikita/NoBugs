@@ -25,16 +25,20 @@ jobs:
       - name: Permission for maven wrapper
         run: chmod +x mvnw
 
-      # 1. Поднимаем контейнеры с заменой тега бэкенда на нужный по заданию
+      # 1. Автоматически находим docker-compose.yml, меняем образ бэкенда и поднимаем инфраструктуру
       - name: Start Infrastructure via Docker Compose
         run: |
-          cd infra/docker_compose
+          COMPOSE_PATH=$(find . -name "docker-compose.yml" -print -quit)
+          COMPOSE_DIR=$(dirname "$COMPOSE_PATH")
+          echo "Найден docker-compose в папке: $COMPOSE_DIR"
+          
+          cd "$COMPOSE_DIR"
           sed -i 's|nobugsme/nbank:preprod_version|nobugsme/nbank:with_validation_fix_with_swagger|g' docker-compose.yml
           docker compose up -d
           sleep 15
           docker compose ps
 
-      # 2. Делаем 5 прогонов тестов на localhost. "|| true" нужен, чтобы пайплайн не падал посреди цикла
+      # 2. Делаем 5 прогонов тестов
       - name: Run Tests 5 Times
         run: |
           for i in {1..5}; do
@@ -44,7 +48,7 @@ jobs:
             ./mvnw clean test -DbaseUrl=http://localhost:4111 -DuiUrl=http://localhost:3000 || true
           done
 
-      # 3. Скачиваем официальный стабильный .jar файл swagger-coverage-commandline
+      # 3. Скачиваем официальный .jar файл swagger-coverage-commandline
       - name: Run Swagger coverage CLI
         if: always()
         run: |
@@ -52,7 +56,7 @@ jobs:
           unzip swagger-coverage-1.5.0.zip
           java -jar swagger-coverage-commandline-1.5.0.jar -s http://localhost:4111/v3/api-docs -i target/swagger-coverage-output
 
-      # 4. Генерируем Allure Report через официальный экшен (решает ошибку allure: command not found)
+      # 4. Генерируем Allure Report через официальный экшен
       - name: Generate Allure Report
         if: always()
         uses: simple-elf/allure-report-action@v1.7
@@ -64,12 +68,18 @@ jobs:
       - name: Check Swagger Quality Gate
         if: always()
         run: |
-          COVERAGE=$(jq '.coverage' target/swagger-coverage-output/swagger-coverage-result.json)
-          echo "============================================="
-          echo "Текущее покрытие API по Swagger: $COVERAGE%"
-          echo "============================================="
-          if (( $(echo "$COVERAGE < 50" | bc -l) )); then
-            echo "Ошибка: Quality Gate не пройден! Покрытие API ($COVERAGE%) ниже необходимых 50%."
+          # Проверяем наличие файла перед парсингом, чтобы не падать на jq
+          if [ -f target/swagger-coverage-output/swagger-coverage-result.json ]; then
+            COVERAGE=$(jq '.coverage' target/swagger-coverage-output/swagger-coverage-result.json)
+            echo "============================================="
+            echo "Текущее покрытие API по Swagger: $COVERAGE%"
+            echo "============================================="
+            if (( $(echo "$COVERAGE < 50" | bc -l) )); then
+              echo "Ошибка: Quality Gate не пройден! Покрытие API ($COVERAGE%) ниже необходимых 50%."
+              exit 1
+            fi
+          else
+            echo "Файл результатов Swagger покрытия не найден!"
             exit 1
           fi
 
@@ -79,10 +89,15 @@ jobs:
         run: |
           mkdir -p public/test-report/${{ github.run_number }}/allure-report
           mkdir -p public/test-report/${{ github.run_number }}/swagger-coverage
-          cp -r target/allure-report/* public/test-report/${{ github.run_number }}/allure-report/
+          
+          if [ -d target/allure-report ]; then
+            cp -r target/allure-report/* public/test-report/${{ github.run_number }}/allure-report/
+          fi
+          
           if [ -f swagger-coverage-report.html ]; then
             cp swagger-coverage-report.html public/test-report/${{ github.run_number }}/swagger-coverage/index.html
           fi
+          
           if [ -f target/swagger-coverage-output/swagger-coverage-result.json ]; then
             cp target/swagger-coverage-output/swagger-coverage-result.json public/test-report/${{ github.run_number }}/swagger-coverage/
           fi
@@ -97,9 +112,11 @@ jobs:
           publish_dir: ./public
           keep_files: true
 
-      # 8. Тушим инфраструктуру
+      # 8. Тушим инфраструктуру с автоматическим поиском папки
       - name: Clean up services
         if: always()
         run: |
-          cd infra/docker_compose
+          COMPOSE_PATH=$(find . -name "docker-compose.yml" -print -quit)
+          COMPOSE_DIR=$(dirname "$COMPOSE_PATH")
+          cd "$COMPOSE_DIR"
           docker compose down -v
