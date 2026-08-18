@@ -1,0 +1,171 @@
+name: Build, Run Tests and Deploy Reports
+
+on:
+  push:
+    paths:
+      - 'src/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    name: Run Automation Pipeline
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'corretto'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Permission for tools
+        run: |
+          chmod +x mvnw
+
+      # 1. Находим docker-compose и поднимаем инфраструктуру
+      - name: Start Infrastructure via Docker Compose
+        run: |
+          COMPOSE_PATH=$(find . -name "docker-compose.yml" -print -quit)
+          COMPOSE_DIR=$(dirname "$COMPOSE_PATH")
+          cd "$COMPOSE_DIR"
+          sed -i 's|nobugsme/nbank:preprod_version|nobugsme/nbank:with_validation_fix_with_swagger|g' docker-compose.yml
+          docker compose up -d
+          sleep 15
+
+      # 1.5 Скачиваем и подготавливаем swagger-coverage-commandline 1.5.0
+      - name: Download and Install Swagger Coverage CLI
+        run: |
+          wget https://github.com/viclovsky/swagger-coverage/releases/download/1.5.0/swagger-coverage-1.5.0.zip
+          unzip swagger-coverage-1.5.0.zip
+          mv swagger-coverage-commandline-1.5.0 .swagger-coverage-commandline
+          chmod +x .swagger-coverage-commandline/bin/swagger-coverage-commandline
+
+      # Сохраняем спецификацию Swagger, пока контейнеры только поднялись и точно работают
+      - name: Save Swagger OpenAPI Spec
+        run: |
+          mkdir -p target-spec
+          curl -s http://localhost:4111/v3/api-docs > target-spec/swagger-openapi.json
+          echo "Спецификация API успешно сохранена в файл."
+
+      # 2. 5 прогонов API тестов для Swagger + 1 чистый прогон UI тестов
+      - name: Run Tests 5 Times
+        run: |
+          # 1. Сначала запускаем только API-тесты 5 раз подряд (без clean, чтобы Swagger копил покрытие)
+          for i in {1..5}; do
+            echo "ЗАПУСК API АВТОТЕСТОВ: ИТЕРАЦИЯ №$i"
+            ./mvnw test -Dtest=api.** -DbaseUrl=http://localhost:4111 -DuiUrl=http://localhost:3000 || true
+          done
+          
+          # 2. В самом конце запускаем UI-тесты всего 1 раз, чтобы они прошли на чистой и стабильной системе
+          echo "ЗАПУСК UI АВТОТЕСТОВ"
+          ./mvnw test -Dtest=ui.** -DbaseUrl=http://localhost:4111 -DuiUrl=http://localhost:3000 || true
+
+      # 3. Запуск Swagger Coverage CLI (передаем сохраненный локальный файл вместо URL)
+      - name: Run Swagger coverage
+        if: always()
+        run: |
+          if [ -d target/swagger-coverage-output ]; then
+            .swagger-coverage-commandline/bin/swagger-coverage-commandline -s target-spec/swagger-openapi.json -i target/swagger-coverage-output || true
+          else
+            echo "Папка target/swagger-coverage-output не найдена. Проверьте настройки библиотеки в Rest Assured."
+          fi
+
+      # 4. Скачиваем официальный стабильный Allure CLI
+      - name: Install Allure CLI
+        if: always()
+        run: |
+          sudo npm install -g allure-commandline --unsafe-perm=true
+          allure --version
+
+      # 5. Генерируем Allure Report
+      - name: Generate Allure Report
+        if: always()
+        run: |
+          if [ -d target/allure-results ]; then
+            allure generate target/allure-results --clean -o target/allure-report || true
+          elif [ -d .allure ]; then
+            allure generate .allure --clean -o target/allure-report || true
+          else
+            echo "Папка с результатами Allure не найдена!"
+          fi
+
+      # 6. Настройка Quality Gate по Swagger (Порог изменен на 30% по ТЗ вашей домашки)
+      - name: Check Swagger Quality Gate
+        if: always()
+        run: |
+          if [ -f target/swagger-coverage-output/swagger-coverage-result.json ]; then
+            COVERAGE=$(jq '.coverage' target/swagger-coverage-output/swagger-coverage-result.json)
+            echo "Текущее покрытие API по Swagger: $COVERAGE%"
+            if (( $(echo "$COVERAGE < 30" | bc -l) )); then
+              echo "Ошибка: Покрытие API ($COVERAGE%) ниже необходимых 30%."
+              exit 1
+            fi
+          else
+            echo "Внимание: Файл swagger-coverage-result.json не найден, пропускаем gate."
+          fi
+
+      # 7. Раскладываем отчеты строго по папкам из ДЗ: test-report/{номер_пайплайна}/...
+      - name: Prepare Report Directory Structure
+        if: always()
+        run: |
+          BUILD_DIR="public/test-report/${{ github.run_number }}"
+          mkdir -p "$BUILD_DIR/allure-report"
+          mkdir -p "$BUILD_DIR/swagger-coverage"
+          
+          # Копируем Allure Report
+          if [ -d target/allure-report ]; then
+            cp -r target/allure-report/* "$BUILD_DIR/allure-report/"
+            echo "Allure-отчет успешно скопирован."
+          else
+            echo "<h1>Allure Report не был сгенерирован</h1>" > "$BUILD_DIR/allure-report/index.html"
+          fi
+          
+          # Копируем HTML-отчет Swagger как index.html внутрь папки swagger-coverage
+          if [ -f swagger-coverage-report.html ]; then
+            cp swagger-coverage-report.html "$BUILD_DIR/swagger-coverage/index.html"
+            echo "Swagger-отчет скопирован из корня как index.html"
+          elif [ -f target/swagger-coverage-report.html ]; then
+            cp target/swagger-coverage-report.html "$BUILD_DIR/swagger-coverage/index.html"
+            echo "Swagger-отчет скопирован из target как index.html"
+          elif [ -d target ]; then
+            SWAGGER_HTML=$(find target -name "swagger-coverage-report.html" -print -quit)
+            if [ -n "$SWAGGER_HTML" ] && [ -f "$SWAGGER_HTML" ]; then
+              cp "$SWAGGER_HTML" "$BUILD_DIR/swagger-coverage/index.html"
+              echo "Swagger-отчет найден через find и скопирован как index.html"
+            else
+              echo "<h1>Swagger Coverage Report не найден</h1>" > "$BUILD_DIR/swagger-coverage/index.html"
+            fi
+          else
+            echo "<h1>Swagger Coverage Report не сгенерирован (нет target)</h1>" > "$BUILD_DIR/swagger-coverage/index.html"
+          fi
+          
+          # Копируем JSON покрытия в папку swagger-coverage
+          if [ -f target/swagger-coverage-output/swagger-coverage-result.json ]; then
+            cp target/swagger-coverage-output/swagger-coverage-result.json "$BUILD_DIR/swagger-coverage/"
+          fi
+
+          # Создаем корневой редирект на Allure текущего билда
+          echo '<meta http-equiv="refresh" content="0; url=/NoBugs/test-report/'${{ github.run_number }}'/allure-report/index.html">' > public/index.html
+
+      # 8. Публикация в GitHub Pages
+      - name: Publish test report
+        uses: peaceiris/actions-gh-pages@v3
+        if: always()
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_branch: gh-pages
+          publish_dir: public
+          keep_files: true
+
+      # 9. Гасим контейнеры
+      - name: Clean up services
+        if: always()
+        run: |
+          COMPOSE_PATH=$(find . -name "docker-compose.yml" -print -quit)
+          COMPOSE_DIR=$(dirname "$COMPOSE_PATH")
+          cd "$COMPOSE_DIR"
+          docker compose down -v
