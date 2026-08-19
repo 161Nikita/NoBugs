@@ -23,7 +23,15 @@ public class UpdateUsernameProfile extends BaseTest {
     @APIVersion("with_database")
     public void SuccessfulNameChangeToAValidFormat() {
         CreateUserRequest user = createAndAuthorizeUser();
+
+        // Фиксируем, что пользователь успешно СОЗДАН
+        UserDao userDbBefore = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userDbBefore)
+                .as("Проверка в Postgres: Сущность пользователя успешно создана в таблице")
+                .isNotNull();
+
         String randomName = RandomData.getUsername() + " " + RandomData.getUsername();
+
         // Обновляем имя пользователя на валидное (Имя Фамилия)
         new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
@@ -32,6 +40,7 @@ public class UpdateUsernameProfile extends BaseTest {
         ).update(UpdateProfileRequest.builder()
                 .name(randomName)
                 .build());
+
         CreateUserResponse profile = new ValidatedCrudRequester<CreateUserResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.CUSTOMER_PROFILE,
@@ -43,12 +52,23 @@ public class UpdateUsernameProfile extends BaseTest {
                 .as("Проверка актуального имени пользователя после обновления профиля")
                 .isEqualTo(randomName);
 
-        // проверка через бд
         // 1. Делаем SQL-запрос в БД и получаем DAO пользователя
         UserDao userDb = DataBaseSteps.getUserByUsername(user.getUsername());
 
+        // Проверяем ОБНОВЛЕНИЕ поля name в самой базе напрямую
+        softly.assertThat(userDb.getName())
+                .as("Проверка в Postgres: Поле имени пользователя успешно обновилось в БД")
+                .isEqualTo(randomName);
+
         // 2. Полное сравнение DAO и CreateUserResponse через кастомный компаратор.
         DaoAndModelAssertions.assertThat(profile, userDb).match();
+
+        // Очистка и проверка удаления сущностей в БД
+        DataBaseSteps.deleteUserByUsername(user.getUsername());
+        UserDao userAfterDeleteDb = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userAfterDeleteDb)
+                .as("Проверка в Postgres: Пользователь успешно УДАЛЕН из базы данных после теста")
+                .isNull();
 
         softly.assertAll();
     }
@@ -58,6 +78,13 @@ public class UpdateUsernameProfile extends BaseTest {
     // !БАГ! Эндпойнт предназначен для смены имени, но может поменять пароль.
     public void PasswordChangeAttempt() {
         CreateUserRequest user = createAndAuthorizeUser();
+
+        // Фиксируем, что пользователь успешно СОЗДАН
+        UserDao userDbBefore = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userDbBefore)
+                .as("Проверка в Postgres: Сущность пользователя успешно создана в таблице")
+                .isNotNull();
+
         String invalidName = RandomData.getUsername() + " " + RandomData.getUsername();
 
         new CrudRequester(
@@ -68,28 +95,34 @@ public class UpdateUsernameProfile extends BaseTest {
                 .name(invalidName)
                 .password(user.getPassword() + "1") // Передаем измененный пароль для проверки бага
                 .build());
+
         CreateUserResponse profile = new ValidatedCrudRequester<CreateUserResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.CUSTOMER_PROFILE,
                 ResponseSpecs.requestReturnsOK()
         ).getSingle();
+
         // Проверяем актуальное имя в профиле через softly
         softly.assertThat(profile.getName())
                 .as("Проверка, что имя профиля не изменилось на невалидное при ошибке смены пароля")
                 .isNotEqualTo(invalidName);
 
         // проверка через бд
-
-        // 1. Делаем SQL-запрос в БД и получаем DAO пользователя
         UserDao userDb = DataBaseSteps.getUserByUsername(user.getUsername());
 
-        // 2. Проверяем точечно в БД, что пароль остался старым и безопасным.
+        //Проверяем точечно в БД, что пароль остался старым и безопасным (Обновление заблокировано).
         softly.assertThat(userDb.getPassword())
                 .as("Проверка в Postgres: пароль пользователя в БД остался прежним и не обновился")
                 .isEqualTo(user.getPassword());
 
         // 3. Полное сравнение DAO и CreateUserResponse через кастомный компаратор.
         DaoAndModelAssertions.assertThat(profile, userDb).match();
+
+        DataBaseSteps.deleteUserByUsername(user.getUsername());
+        UserDao userAfterDeleteDb = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userAfterDeleteDb)
+                .as("Проверка в Postgres: Пользователь успешно УДАЛЕН из базы данных после теста")
+                .isNull();
 
         softly.assertAll();
     }
@@ -98,7 +131,15 @@ public class UpdateUsernameProfile extends BaseTest {
     @APIVersion("with_database")
     public void AttemptToSetANameConsistingOfOnlyOneWord() {
         CreateUserRequest user = createAndAuthorizeUser();
+
+        // Фиксируем, что пользователь успешно СОЗДАН
+        UserDao userDbBefore = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userDbBefore)
+                .as("Проверка в Postgres: Сущность пользователя успешно создана в таблице")
+                .isNotNull();
+
         String invalidName = RandomData.getUsername();
+
         // Негативный тест: имя только из одного слова
         new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
@@ -107,11 +148,13 @@ public class UpdateUsernameProfile extends BaseTest {
         ).update(UpdateProfileRequest.builder()
                 .name(RandomData.getUsername())
                 .build());
+
         CreateUserResponse profile = new ValidatedCrudRequester<CreateUserResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.CUSTOMER_PROFILE,
                 ResponseSpecs.requestReturnsOK()
         ).getSingle();
+
         // Проверяем актуальное имя в профиле через softly
         softly.assertThat(profile.getName())
                 .as("Проверка, что невалидное имя из одного слова не сохранилось в профиле")
@@ -122,6 +165,12 @@ public class UpdateUsernameProfile extends BaseTest {
 
         // 2. Полное сравнение DAO и CreateUserResponse через кастомный компаратор.
         DaoAndModelAssertions.assertThat(profile, userDb).match();
+
+        DataBaseSteps.deleteUserByUsername(user.getUsername());
+        UserDao userAfterDeleteDb = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userAfterDeleteDb)
+                .as("Проверка в Postgres: Пользователь успешно УДАЛЕН из базы данных после теста")
+                .isNull();
 
         softly.assertAll();
     }

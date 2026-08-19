@@ -5,23 +5,23 @@ import generators.RandomData;
 import iteration2.BaseTest;
 import iteration2.api.comparison.DaoAndModelAssertions;
 import iteration2.api.dao.AccountDao;
+import iteration2.api.dao.UserDao;
 import models.CreateAccountResponse;
 import models.CreateUserRequest;
 import models.UserTransferAccountRequest;
 import models.UserTransferAccountResponse;
 import models.comparison.ModelAssertions;
 import models.comparison.ModelComparator;
-import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.Test;
 import requests.skelethon.Endpoint;
 import requests.skelethon.requesters.CrudRequester;
 import requests.skelethon.requesters.ValidatedCrudRequester;
+import requests.skelethon.steps.DataBaseSteps;
 import specs.RequestSpecs;
 import specs.ResponseSpecs;
 import utils.APIVersion;
 
 import java.util.List;
-import java.util.stream.IntStream;
 
 
 public class TransferringMoney extends BaseTest {
@@ -31,12 +31,24 @@ public class TransferringMoney extends BaseTest {
     public void SuccessfulTransferOfFundsBetweenYourOwnAccounts() {
         CreateUserRequest user = createAndAuthorizeUser();
 
+        // Фиксируем создание пользователя
+        UserDao userDaoBefore = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userDaoBefore)
+                .as("Проверка в Postgres: Пользователь успешно создан")
+                .isNotNull();
+
         CreateAccountResponse senderAccount = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.ACCOUNTS,
                 ResponseSpecs.entityWasCreated()
         ).post();
         long senderAccountId = senderAccount.getId();
+
+        // Фиксируем создание счета отправителя
+        AccountDao senderDbBefore = DataBaseSteps.getAccountById(senderAccountId);
+        softly.assertThat(senderDbBefore)
+                .as("Проверка в Postgres: Счет отправителя успешно создан")
+                .isNotNull();
 
         double initialAmount = (Double) ModelComparator.normalizeValue(RandomData.getAmount());
         new CrudRequester(
@@ -54,6 +66,12 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.entityWasCreated()
         ).post();
         long receiverAccountId = receiverAccount.getId();
+
+        //  Фиксируем создание счета получателя
+        AccountDao receiverDbBefore = DataBaseSteps.getAccountById(receiverAccountId);
+        softly.assertThat(receiverDbBefore)
+                .as("Проверка in Postgres: Счет получателя успешно создан")
+                .isNotNull();
 
         double transferAmount = (Double) ModelComparator.normalizeValue(initialAmount / 2);
 
@@ -108,23 +126,60 @@ public class TransferringMoney extends BaseTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Счет получателя не найден"));
 
-        // Запрос в БД и сравнение через кастомный компаратор для отправителя
-        iteration2.api.dao.AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
+        // Запрос в БД для отправителя
+        AccountDao senderAccountDb = DataBaseSteps.getAccountById(senderAccountId);
+
+        // Списание денег у отправителя
+        softly.assertThat(senderAccountDb.getBalance())
+                .as("Проверка в Postgres: Списание средств со счета отправителя выполнено корректно")
+                .isEqualTo(expectedSenderBalance);
+
         DaoAndModelAssertions.assertThat(actualSenderDto, senderAccountDb).match();
 
-        // Запрос в БД и сравнение через кастомный компаратор для получателя
-        iteration2.api.dao.AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
+        // Запрос в БД для получателя
+        AccountDao receiverAccountDb = DataBaseSteps.getAccountById(receiverAccountId);
+
+        // Зачисление денег получателю
+        softly.assertThat(receiverAccountDb.getBalance())
+                .as("Проверка в Postgres: Зачисление средств на счет получателя выполнено корректно")
+                .isEqualTo(expectedReceiverBalance);
+
         DaoAndModelAssertions.assertThat(actualReceiverDto, receiverAccountDb).match();
 
-        softly.assertAll();
+        // 1. Удаляем счета
+        requests.skelethon.steps.DataBaseSteps.deleteAccountById(senderAccountId);
+        requests.skelethon.steps.DataBaseSteps.deleteAccountById(receiverAccountId);
 
+        softly.assertThat(requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId))
+                .as("Проверка в Postgres: Счет отправителя успешно удален")
+                .isNull();
+        softly.assertThat(requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId))
+                .as("Проверка в Postgres: Счет получателя успешно удален")
+                .isNull();
+
+        // 2. Удаляем пользователя
+        requests.skelethon.steps.DataBaseSteps.deleteUserByUsername(user.getUsername());
+        softly.assertThat(requests.skelethon.steps.DataBaseSteps.getUserByUsername(user.getUsername()))
+                .as("Проверка в Postgres: Пользователь успешно удален")
+                .isNull();
+
+        softly.assertAll();
     }
+
 
     @Test
     @APIVersion("with_database")
     public void AttemptToTransferAnAmountExceedingTheMaximumLimitOverTest() {
         CreateUserRequest user = createAndAuthorizeUser();
         CreateUserRequest user2 = createAndAuthorizeUser();
+
+        // Убеждаемся, что оба пользователя созданы в Postgres
+        softly.assertThat(DataBaseSteps.getUserByUsername(user.getUsername()))
+                .as("Проверка в Postgres: Первый пользователь успешно создан")
+                .isNotNull();
+        softly.assertThat(DataBaseSteps.getUserByUsername(user2.getUsername()))
+                .as("Проверка в Postgres: Второй пользователь успешно создан")
+                .isNotNull();
 
         // 1. Создаем счет № 1 - отправитель
         CreateAccountResponse senderAccount = new ValidatedCrudRequester<CreateAccountResponse>(
@@ -133,6 +188,11 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.entityWasCreated()
         ).post();
         long senderAccountId = senderAccount.getId();
+
+        // Проверяем создание счета отправителя
+        softly.assertThat(DataBaseSteps.getAccountById(senderAccountId))
+                .as("Проверка в Postgres: Счет отправителя успешно создан")
+                .isNotNull();
 
         // Расчет суммы перевода (> 10000) и деление её на 3 равные части
         double transferAmountOverLimit = RandomData.getTransferOverLimit();
@@ -143,7 +203,7 @@ public class TransferringMoney extends BaseTest {
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.USER_TOP_UP_ACCOUNT,
                 ResponseSpecs.requestReturnsOK());
-        IntStream.range(0, 3).forEach(i ->
+        java.util.stream.IntStream.range(0, 3).forEach(i ->
                 topUp.post(CreateAccountResponse.builder().id(senderAccountId).balance(chunk).build())
         );
 
@@ -154,6 +214,11 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.entityWasCreated()
         ).post();
         long receiverAccountId = receiverAccount.getId();
+
+        //  Проверяем создание счета получателя
+        softly.assertThat(DataBaseSteps.getAccountById(receiverAccountId))
+                .as("Проверка в Postgres: Счет получателя успешно создан")
+                .isNotNull();
 
         // 4. Попытка перевода чужого счета
         new CrudRequester(
@@ -180,7 +245,7 @@ public class TransferringMoney extends BaseTest {
                 .filteredOn(account -> account.getId() == senderAccountId)
                 .extracting(CreateAccountResponse::getBalance)
                 .allSatisfy(balance -> softly.assertThat(balance)
-                        .isCloseTo(expectedSenderBalance, Offset.offset(0.01)));
+                        .isCloseTo(expectedSenderBalance, org.assertj.core.data.Offset.offset(0.01)));
 
         // проверка, что баланс получателя не изменился, остался равен 0.0
         List<CreateAccountResponse> receiverAccounts = new ValidatedCrudRequester<CreateAccountResponse>(
@@ -210,11 +275,45 @@ public class TransferringMoney extends BaseTest {
 
         // Запрос в БД и комплексное сравнение для отправителя
         AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
+
+        // Убеждаемся, что баланс в базе остался прежним
+        softly.assertThat(senderAccountDb.getBalance())
+                .as("Проверка в Postgres: При ошибке лимита баланс отправителя в БД не изменился")
+                .isCloseTo(expectedSenderBalance, org.assertj.core.data.Offset.offset(0.01));
+
         DaoAndModelAssertions.assertThat(actualSenderDto, senderAccountDb).match();
 
         // Запрос в БД и комплексное сравнение для получателя
-        AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
+        AccountDao receiverAccountDb = DataBaseSteps.getAccountById(receiverAccountId);
+
+        // Убеждаемся, что баланс получателя остался нулевым
+        softly.assertThat(receiverAccountDb.getBalance())
+                .as("Проверка в Postgres: При ошибке лимита баланс получателя в БД остался нулевым")
+                .isZero();
+
         DaoAndModelAssertions.assertThat(actualReceiverDto, receiverAccountDb).match();
+
+        // 1. Стираем счета из базы данных
+        DataBaseSteps.deleteAccountById(senderAccountId);
+        DataBaseSteps.deleteAccountById(receiverAccountId);
+
+        softly.assertThat(DataBaseSteps.getAccountById(senderAccountId))
+                .as("Проверка в Postgres: Счет отправителя успешно стерт")
+                .isNull();
+        softly.assertThat(DataBaseSteps.getAccountById(receiverAccountId))
+                .as("Проверка в Postgres: Счет получателя успешно стерт")
+                .isNull();
+
+        // 2. Стираем обоих пользователей из базы данных
+        DataBaseSteps.deleteUserByUsername(user.getUsername());
+        DataBaseSteps.deleteUserByUsername(user2.getUsername());
+
+        softly.assertThat(DataBaseSteps.getUserByUsername(user.getUsername()))
+                .as("Проверка в Postgres: Первый пользователь успешно стерт")
+                .isNull();
+        softly.assertThat(DataBaseSteps.getUserByUsername(user2.getUsername()))
+                .as("Проверка в Postgres: Второй пользователь успешно стерт")
+                .isNull();
 
         softly.assertAll();
     }
@@ -225,6 +324,14 @@ public class TransferringMoney extends BaseTest {
         CreateUserRequest user = createAndAuthorizeUser();
         CreateUserRequest user2 = createAndAuthorizeUser();
 
+        // Убеждаемся, что оба пользователя успешно созданы в Postgres
+        softly.assertThat(DataBaseSteps.getUserByUsername(user.getUsername()))
+                .as("Проверка в Postgres: Первый пользователь успешно создан")
+                .isNotNull();
+        softly.assertThat(DataBaseSteps.getUserByUsername(user2.getUsername()))
+                .as("Проверка в Postgres: Второй пользователь успешно создан")
+                .isNotNull();
+
         // 1. Создаем счет № 1 - отправитель
         CreateAccountResponse senderAccount = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
@@ -232,6 +339,11 @@ public class TransferringMoney extends BaseTest {
                 ResponseSpecs.entityWasCreated()
         ).post();
         long senderAccountId = senderAccount.getId();
+
+        // Проверяем создание счета отправителя
+        softly.assertThat(DataBaseSteps.getAccountById(senderAccountId))
+                .as("Проверка в Postgres: Счет отправителя успешно создан")
+                .isNotNull();
 
         // 2. Пополняем счет № 1 на случайную валидную сумму (в пределах лимита 5000)
         double initialAmount = RandomData.getAmount();
@@ -252,6 +364,11 @@ public class TransferringMoney extends BaseTest {
         ).post();
         long receiverAccountId = receiverAccount.getId();
 
+        // Проверяем создание счета получателя
+        softly.assertThat(DataBaseSteps.getAccountById(receiverAccountId))
+                .as("Проверка в Postgres: Счет получателя успешно создан")
+                .isNotNull();
+
         // Расчет невалидной суммы перевода
         double invalidTransferAmount = initialAmount + RandomData.getAmount();
 
@@ -265,6 +382,7 @@ public class TransferringMoney extends BaseTest {
                 .receiverAccountId(receiverAccountId)
                 .amount(invalidTransferAmount)
                 .build());
+
         List<CreateAccountResponse> senderAccounts = new ValidatedCrudRequester<CreateAccountResponse>(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
                 Endpoint.CUSTOMER_ACCOUNTS,
@@ -302,13 +420,47 @@ public class TransferringMoney extends BaseTest {
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Счет получателя не найден в списке"));
 
-        // Запрос в БД и комплексное сравнение для отправителя
-        AccountDao senderAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(senderAccountId);
+        // Запрос в БД для отправителя
+        AccountDao senderAccountDb = DataBaseSteps.getAccountById(senderAccountId);
+
+        //  Убеждаемся, что из-за ошибки баланс отправителя в БД остался прежним
+        softly.assertThat(senderAccountDb.getBalance())
+                .as("Проверка в Postgres: При ошибке нехватки средств баланс отправителя в БД не изменился")
+                .isEqualTo(initialAmount);
+
         DaoAndModelAssertions.assertThat(actualSenderDto, senderAccountDb).match();
 
-        // Запрос в БД и комплексное сравнение для получателя
-        AccountDao receiverAccountDb = requests.skelethon.steps.DataBaseSteps.getAccountById(receiverAccountId);
+        // Запрос в БД для получателя
+        AccountDao receiverAccountDb = DataBaseSteps.getAccountById(receiverAccountId);
+
+        // [Убеждаемся, что из-за ошибки баланс получателя в БД остался нулевым
+        softly.assertThat(receiverAccountDb.getBalance())
+                .as("Проверка в Postgres: При ошибке нехватки средств баланс получателя в БД остался нулевым")
+                .isZero();
+
         DaoAndModelAssertions.assertThat(actualReceiverDto, receiverAccountDb).match();
+
+        // 1. Стираем созданные счета из базы данных
+        DataBaseSteps.deleteAccountById(senderAccountId);
+        DataBaseSteps.deleteAccountById(receiverAccountId);
+
+        softly.assertThat(DataBaseSteps.getAccountById(senderAccountId))
+                .as("Проверка в Postgres: Счет отправителя успешно стерт")
+                .isNull();
+        softly.assertThat(DataBaseSteps.getAccountById(receiverAccountId))
+                .as("Проверка в Postgres: Счет получателя успешно стерт")
+                .isNull();
+
+        // 2. Стираем созданных пользователей из базы данных
+        DataBaseSteps.deleteUserByUsername(user.getUsername());
+        DataBaseSteps.deleteUserByUsername(user2.getUsername());
+
+        softly.assertThat(DataBaseSteps.getUserByUsername(user.getUsername()))
+                .as("Проверка в Postgres: Первый пользователь успешно стерт")
+                .isNull();
+        softly.assertThat(DataBaseSteps.getUserByUsername(user2.getUsername()))
+                .as("Проверка в Postgres: Второй пользователь успешно стерт")
+                .isNull();
 
         softly.assertAll();
     }

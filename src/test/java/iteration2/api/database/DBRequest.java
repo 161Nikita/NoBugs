@@ -18,6 +18,7 @@ public class DBRequest {
     private RequestType requestType;
     private String table;
     private List<Condition> conditions;
+    private Map<String, Object> updateValues; // Поля и значения для UPDATE
     private Class<?> extractAsClass;
 
     public enum RequestType {
@@ -47,10 +48,23 @@ public class DBRequest {
         try (Connection connection = getConnection();
              PreparedStatement statement = connection.prepareStatement(sql)) {
 
-            if (conditions != null) {
-                for (int i = 0; i < conditions.size(); i++) {
-                    statement.setObject(i + 1, conditions.get(i).getValue());
+            int paramIndex = 1;
+
+            if (requestType == RequestType.UPDATE && updateValues != null) {
+                for (Object value : updateValues.values()) {
+                    statement.setObject(paramIndex++, value);
                 }
+            }
+
+            if (conditions != null) {
+                for (Condition condition : conditions) {
+                    statement.setObject(paramIndex++, condition.getValue());
+                }
+            }
+
+            if (requestType == RequestType.DELETE || requestType == RequestType.UPDATE) {
+                statement.executeUpdate();
+                return null;
             }
 
             try (ResultSet resultSet = statement.executeQuery()) {
@@ -98,19 +112,40 @@ public class DBRequest {
         switch (requestType) {
             case SELECT:
                 sql.append("SELECT * FROM ").append(table);
-                if (conditions != null && !conditions.isEmpty()) {
-                    sql.append(" WHERE ");
-                    for (int i = 0; i < conditions.size(); i++) {
-                        if (i > 0) sql.append(" AND ");
-                        sql.append(conditions.get(i).getColumn()).append(" ").append(conditions.get(i).getOperator()).append(" ?");
-                    }
+                appendWhereClause(sql);
+                break;
+            case DELETE:
+                sql.append("DELETE FROM ").append(table);
+                appendWhereClause(sql);
+                break;
+            case UPDATE:
+                sql.append("UPDATE ").append(table).append(" SET ");
+                if (updateValues == null || updateValues.isEmpty()) {
+                    throw new IllegalArgumentException("Update values cannot be empty for UPDATE request");
                 }
+                int i = 0;
+                for (String column : updateValues.keySet()) {
+                    if (i > 0) sql.append(", ");
+                    sql.append(column).append(" = ?");
+                    i++;
+                }
+                appendWhereClause(sql);
                 break;
             default:
                 throw new UnsupportedOperationException("Request type " + requestType + " not implemented");
         }
 
         return sql.toString();
+    }
+
+    private void appendWhereClause(StringBuilder sql) {
+        if (conditions != null && !conditions.isEmpty()) {
+            sql.append(" WHERE ");
+            for (int i = 0; i < conditions.size(); i++) {
+                if (i > 0) sql.append(" AND ");
+                sql.append(conditions.get(i).getColumn()).append(" ").append(conditions.get(i).getOperator()).append(" ?");
+            }
+        }
     }
 
     private Connection getConnection() throws SQLException {
@@ -129,6 +164,7 @@ public class DBRequest {
         private RequestType requestType;
         private String table;
         private List<Condition> conditions = new ArrayList<>();
+        private Map<String, Object> updateValues = new HashMap<>();
         private Class<?> extractAsClass;
 
         public DBRequestBuilder requestType(RequestType requestType) {
@@ -146,12 +182,19 @@ public class DBRequest {
             return this;
         }
 
+        // МЕТОД ДЛЯ УСТАНОВКИ ПОЛЕЙ ОБНОВЛЕНИЯ
+        public DBRequestBuilder set(String column, Object value) {
+            this.updateValues.put(column, value);
+            return this;
+        }
+
         public <T> T extractAs(Class<T> clazz) {
             this.extractAsClass = clazz;
             DBRequest request = DBRequest.builder()
                     .requestType(requestType)
                     .table(table)
                     .conditions(conditions)
+                    .updateValues(updateValues)
                     .extractAsClass(extractAsClass)
                     .build();
             return request.extractAs(clazz);

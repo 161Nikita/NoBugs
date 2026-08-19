@@ -1,3 +1,7 @@
+
+allure-results/
+
+# Сборка Maven и целевые папки
 target/
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
@@ -37,3 +41,9 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+# Инструменты Allure Commandline
+/.allure/
+/qodana.yaml
+/.github/workflows/qodana_code_quality.yml
+/infra/kube/nbank-chart/REPORT.md

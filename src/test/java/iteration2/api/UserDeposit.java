@@ -28,9 +28,21 @@ public class UserDeposit extends BaseTest {
     public void depositTopUpTest() {
         CreateUserRequest user = createAndAuthorizeUser();
 
+        // Проверяем, что пользователь успешно СОЗДАН в Postgres
+        UserDao userDao = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userDao)
+                .as("Проверка в Postgres: Создание пользователя прошло успешно")
+                .isNotNull();
+
         long accountId = requests.skelethon.steps.AccountSteps.createAccount(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword())
         ).getId();
+        // Проверяем, что счет успешно СОЗДАН в Postgres
+        AccountDao accountAfterCreationDb = DataBaseSteps.getAccountById(accountId);
+        softly.assertThat(accountAfterCreationDb)
+                .as("Проверка в Postgres: Создание сущности счета прошло успешно")
+                .isNotNull();
+
         // генерация суммы пополнения
         double depositAmount = RandomData.getAmount();
 
@@ -60,20 +72,32 @@ public class UserDeposit extends BaseTest {
                 .extracting(CreateAccountResponse::getBalance)
                 .containsExactly(expectedBalance);
 
-
-        // проверка через базу данных
-
-        // 1. Находим нужный DTO из списка accounts для передачи в компаратор
         CreateAccountResponse actualDto = accounts.stream()
                 .filter(account -> account.getId() == accountId)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Аккаунт с ID " + accountId + " не найден в списке"));
 
-        // 2. Делаем SQL-запрос в БД и получаем DAO
         AccountDao accountDao = DataBaseSteps.getAccountById(accountId);
+        //Проверяем ОБНОВЛЕНИЕ баланса сущности в БД напрямую по полю
+        softly.assertThat(accountDao.getBalance())
+                .as("Проверка в Postgres: Обновление баланса счета в БД выполнено корректно")
+                .isEqualTo(expectedBalance);
 
-        // 3. Сравниваем DAO и DTO через кастомный компаратор
         DaoAndModelAssertions.assertThat(actualDto, accountDao).match();
+
+        //Сначала удаляем зависимые сущности (счет привязан к юзеру, трем сначала его)
+        DataBaseSteps.deleteAccountById(accountId);
+        AccountDao accountAfterDeleteDb = DataBaseSteps.getAccountById(accountId);
+        softly.assertThat(accountAfterDeleteDb)
+                .as("Проверка в Postgres: Сущность счета успешно УДАЛЕНА из базы данных (равна null)")
+                .isNull();
+
+        // Затем удаляем самого пользователя
+        DataBaseSteps.deleteUserByUsername(user.getUsername());
+        UserDao userAfterDeleteDb = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userAfterDeleteDb)
+                .as("Проверка в Postgres: Сущность пользователя успешно УДАЛЕНА из базы данных (равна null)")
+                .isNull();
 
         softly.assertAll();
     }
@@ -91,7 +115,11 @@ public class UserDeposit extends BaseTest {
         ).post();
 
         long accountId = accountResponse.getId();
-
+        // Фиксируем создание счета в БД
+        AccountDao accountAfterCreationDb = DataBaseSteps.getAccountById(accountId);
+        softly.assertThat(accountAfterCreationDb)
+                .as("Проверка в Postgres: Сущность счета успешно создана")
+                .isNotNull();
         // пополнение своего счета превышающий лимит
         new CrudRequester(
                 RequestSpecs.authAsUser(user.getUsername(), user.getPassword()),
@@ -116,18 +144,33 @@ public class UserDeposit extends BaseTest {
 
         // проверка через бд
 
-        // 1. Находим актуальный DTO из списка accounts (где баланс должен быть нулевым)
+        //Находим актуальный DTO из списка accounts (где баланс должен быть нулевым)
         CreateAccountResponse actualDto = accounts.stream()
                 .filter(account -> account.getId() == accountId)
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("Аккаунт с ID " + accountId + " не найден в списке"));
 
-        // 2. Делаем SQL-запрос в БД и получаем DAO
+        // Делаем SQL-запрос в БД и получаем DAO
         AccountDao accountDao = DataBaseSteps.getAccountById(accountId);
-
-        // 3. Полное сравнение DAO и DTO через кастомный компаратор
-        // Он проверит, что состояние в базе полностью соответствует DTO из GET-запроса
+        // Убеждаемся, что при ошибке баланс в базе НЕ ОБНОВИЛСЯ (остался нулевым)
+        softly.assertThat(accountDao.getBalance())
+                .as("Проверка в Postgres: При превышении лимита баланс счета в БД остался неизменным (0.0)")
+                .isZero();
         DaoAndModelAssertions.assertThat(actualDto, accountDao).match();
+
+        // Удаляем счет
+        DataBaseSteps.deleteAccountById(accountId);
+        AccountDao accountAfterDeleteDb = DataBaseSteps.getAccountById(accountId);
+        softly.assertThat(accountAfterDeleteDb)
+                .as("Проверка в Postgres: Сущность счета успешно УДАЛЕНА из базы данных (равна null)")
+                .isNull();
+
+        // Удаляем пользователя
+        DataBaseSteps.deleteUserByUsername(user.getUsername());
+        UserDao userAfterDeleteDb = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userAfterDeleteDb)
+                .as("Проверка в Postgres: Сущность пользователя успешно УДАЛЕНА из базы данных (равна null)")
+                .isNull();
 
         softly.assertAll();
     }
@@ -169,5 +212,19 @@ public class UserDeposit extends BaseTest {
         softly.assertThat(accountDao)
                 .as("Проверка в Postgres: фейковый счет действительно отсутствует в таблице accounts (равен null)")
                 .isNull();
+
+        // Доказываем отсутствие невалидной сущности счета в БД
+        softly.assertThat(accountDao)
+                .as("Проверка в Postgres: фейковый счет действительно отсутствует в таблице accounts (равен null)")
+                .isNull();
+
+        // Удаляем созданного тестового пользователя
+        DataBaseSteps.deleteUserByUsername(user.getUsername());
+        UserDao userAfterDeleteDb = DataBaseSteps.getUserByUsername(user.getUsername());
+        softly.assertThat(userAfterDeleteDb)
+                .as("Проверка в Postgres: Сущность пользователя успешно УДАЛЕНА из базы данных (равна null)")
+                .isNull();
+
+        softly.assertAll();
     }
 }

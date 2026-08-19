@@ -42,4 +42,24 @@ public class DataBaseSteps {
                     .extractAs(AccountDao.class);
         });
     }
+
+    public static void deleteAccountById(long accountId) {
+        StepLogger.log("Delete account from database by id: " + accountId, () -> {
+            DBRequest.builder()
+                    .requestType(DBRequest.RequestType.DELETE)
+                    .table(Table.ACCOUNTS.getName())
+                    .where(Condition.equalTo("id", accountId))
+                    .extractAs(Void.class);
+        });
+    }
+
+    public static void deleteUserByUsername(String username) {
+        StepLogger.log("Delete user from database by username: " + username, () -> {
+            DBRequest.builder()
+                    .requestType(DBRequest.RequestType.DELETE)
+                    .table(Table.CUSTOMERS.getName())
+                    .where(Condition.equalTo("username", username))
+                    .extractAs(Void.class);
+        });
+    }
 }
