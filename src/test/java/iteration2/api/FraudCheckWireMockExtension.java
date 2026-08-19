@@ -4,6 +4,8 @@ import com.github.tomakehurst.wiremock.WireMockServer;
 import com.github.tomakehurst.wiremock.client.WireMock;
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration;
 import common.annotations.FraudCheckMock;
+import constants.FraudDecision;
+import constants.FraudStatus;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -16,7 +18,6 @@ public class FraudCheckWireMockExtension implements BeforeEachCallback, AfterEac
 
     @Override
     public void beforeEach(ExtensionContext context) {
-        // Читаем аннотацию над текущим запущенным тестом
         FraudCheckMock mockConfig = context.getTestMethod()
                 .map(method -> method.getAnnotation(FraudCheckMock.class))
                 .orElseGet(() -> context.getTestClass()
@@ -29,26 +30,29 @@ public class FraudCheckWireMockExtension implements BeforeEachCallback, AfterEac
     }
 
     private void setupWireMock(FraudCheckMock config) {
-        wireMockServer = new WireMockServer(WireMockConfiguration.wireMockConfig().port(8888));
-        wireMockServer.start();
-        WireMock.configureFor("0.0.0.0", 8888);
+        if (wireMockServer == null || !wireMockServer.isRunning()) {
+            wireMockServer = new WireMockServer(WireMockConfiguration.wireMockConfig().port(8888).bindAddress("0.0.0.0"));
+            wireMockServer.start();
+            WireMock.configureFor("0.0.0.0", 8888);
+        }
 
-        // Кейс 5: Если порт 500 (или статус ошибки), симулируем не-200 ошибку сервиса фрода
-        if (config.port() == 500 || "ERROR".equals(config.status())) {
+        WireMock.reset();
+
+        // КЕЙС 5: Если в тесте указан port = 500 или статус ERROR — честно роняем фрод-сервис (HTTP 500) для ВСЕХ запросов этого теста
+        if (config.port() == 500 || config.status() == FraudStatus.ERROR) {
             WireMock.stubFor(WireMock.post(WireMock.anyUrl())
                     .willReturn(aResponse().withStatus(500)));
             return;
         }
 
-        // Вычисляем логические флаги строго на основе параметров аннотации конкретного теста!
-        String decision = config.decision();
-        boolean manualReview = config.requiresManualReview() || "REVIEW_REQUIRED".equals(decision) || "MANUAL_REVIEW_REQUIRED".equals(decision);
-        boolean verification = config.additionalVerificationRequired() || "VERIFICATION_REQUIRED".equals(decision);
+        // КЕЙСЫ 1-4: Формируем эталонный динамический JSON на основе Enum из аннотации
+        FraudDecision decision = config.decision();
+        boolean manualReview = config.requiresManualReview() || decision == FraudDecision.REVIEW_REQUIRED;
+        boolean verification = config.additionalVerificationRequired() || decision == FraudDecision.VERIFICATION_REQUIRED;
 
-        // Полностью динамический JSON без String.format (защита от локали ОС и запятых)
         String responseBody = "{\n" +
-                "  \"status\": \"" + config.status() + "\",\n" +
-                "  \"decision\": \"" + decision + "\",\n" +
+                "  \"status\": \""+ config.status().name() + "\",\n" +
+                "  \"decision\": \"" + decision.name() + "\",\n" +
                 "  \"riskScore\": " + config.riskScore() + ",\n" +
                 "  \"fraudRiskScore\": " + config.riskScore() + ",\n" +
                 "  \"reason\": \"" + config.reason() + "\",\n" +
@@ -58,6 +62,7 @@ public class FraudCheckWireMockExtension implements BeforeEachCallback, AfterEac
                 "  \"additionalVerificationRequired\": " + verification + "\n" +
                 "}";
 
+        // Для успешных тестов отдаем этот JSON на любые запросы
         WireMock.stubFor(WireMock.post(WireMock.anyUrl())
                 .willReturn(aResponse()
                         .withStatus(200)
@@ -67,8 +72,9 @@ public class FraudCheckWireMockExtension implements BeforeEachCallback, AfterEac
 
     @Override
     public void afterEach(ExtensionContext context) {
-        if (wireMockServer != null) {
+        if (wireMockServer != null && wireMockServer.isRunning()) {
             wireMockServer.stop();
+            wireMockServer = null;
         }
     }
 }

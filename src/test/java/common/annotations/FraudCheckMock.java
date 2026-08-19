@@ -1,5 +1,8 @@
 package common.annotations;
 
+import constants.FraudDecision;
+import constants.FraudStatus;
+
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -12,12 +15,12 @@ public @interface FraudCheckMock {
     /**
      * The fraud check status to return
      */
-    String status() default "SUCCESS";
+    FraudStatus status() default FraudStatus.SUCCESS;
 
     /**
      * The fraud check decision
      */
-    String decision() default "APPROVED";
+    FraudDecision decision() default FraudDecision.APPROVED;
 
     /**
      * The risk score (0.0 to 1.0)

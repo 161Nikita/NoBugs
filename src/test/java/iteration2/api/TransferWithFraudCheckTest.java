@@ -2,6 +2,8 @@ package iteration2.api;
 
 import common.annotations.FraudCheckMock;
 import common.extensions.TimingExtension;
+import constants.FraudDecision;
+import constants.FraudStatus;
 import generators.RandomData;
 import iteration2.BaseTest;
 import models.CreateAccountResponse;
@@ -55,8 +57,9 @@ public class TransferWithFraudCheckTest extends BaseTest {
     // === КЕЙС 1: APPROVED ===
     @Test
     @FraudCheckMock(
-            status = "SUCCESS", decision = "APPROVED", reason = "Low risk",
-            riskScore = 0.2, requiresManualReview = false, additionalVerificationRequired = false
+            status = FraudStatus.SUCCESS,
+            decision = FraudDecision.APPROVED,
+            reason = "Low risk"
     )
     public void testTransferApproved(TestInfo testInfo) {
         TransferResponse response = accountSteps1.transferWithFraudCheck(account1.getId(), account2.getId(), transferAmount);
@@ -66,8 +69,10 @@ public class TransferWithFraudCheckTest extends BaseTest {
     // === КЕЙС 2: BLOCKED ===
     @Test
     @FraudCheckMock(
-            status = "SUCCESS", decision = "BLOCKED", reason = "High fraud risk",
-            riskScore = 0.9, requiresManualReview = false, additionalVerificationRequired = false
+            status = FraudStatus.SUCCESS,
+            decision = FraudDecision.BLOCKED,
+            reason = "High fraud risk",
+            riskScore = 0.9
     )
     public void testTransferBlocked(TestInfo testInfo) {
         TransferResponse response = accountSteps1.transferWithFraudCheck(account1.getId(), account2.getId(), transferAmount);
@@ -77,8 +82,11 @@ public class TransferWithFraudCheckTest extends BaseTest {
     // === КЕЙС 3: REVIEW_REQUIRED ===
     @Test
     @FraudCheckMock(
-            status = "SUCCESS", decision = "REVIEW_REQUIRED", reason = "Suspicious activity",
-            riskScore = 0.5, requiresManualReview = true, additionalVerificationRequired = false
+            status = FraudStatus.SUCCESS,
+            decision = FraudDecision.REVIEW_REQUIRED,
+            reason = "Suspicious activity",
+            riskScore = 0.5,
+            requiresManualReview = true
     )
     public void testTransferReviewRequired(TestInfo testInfo) {
         TransferResponse response = accountSteps1.transferWithFraudCheck(account1.getId(), account2.getId(), transferAmount);
@@ -88,8 +96,11 @@ public class TransferWithFraudCheckTest extends BaseTest {
     // === КЕЙС 4: VERIFICATION_REQUIRED ===
     @Test
     @FraudCheckMock(
-            status = "SUCCESS", decision = "VERIFICATION_REQUIRED", reason = "New device login",
-            riskScore = 0.4, requiresManualReview = false, additionalVerificationRequired = true
+            status = FraudStatus.SUCCESS,
+            decision = FraudDecision.VERIFICATION_REQUIRED,
+            reason = "New device login",
+            riskScore = 0.4,
+            additionalVerificationRequired = true
     )
     public void testTransferVerificationRequired(TestInfo testInfo) {
         TransferResponse response = accountSteps1.transferWithFraudCheck(account1.getId(), account2.getId(), transferAmount);
@@ -100,8 +111,11 @@ public class TransferWithFraudCheckTest extends BaseTest {
     @Test
     @FraudCheckMock(
             port = 500,
-            status = "ERROR", decision = "ERROR", reason = "Service Unavailable",
-            riskScore = 0.5, requiresManualReview = true, additionalVerificationRequired = false
+            status = FraudStatus.ERROR,
+            decision = FraudDecision.ERROR,
+            reason = "Service Unavailable",
+            riskScore = 0.5,
+            requiresManualReview = true
     )
     public void testTransferFallbackOnServiceError(TestInfo testInfo) {
         TransferResponse response = accountSteps1.transferWithFraudCheck(account1.getId(), account2.getId(), transferAmount);
@@ -112,8 +126,8 @@ public class TransferWithFraudCheckTest extends BaseTest {
         Method testMethod = testInfo.getTestMethod().orElseThrow(() -> new RuntimeException("Метод теста не определен"));
         FraudCheckMock mockConfig = testMethod.getAnnotation(FraudCheckMock.class);
 
-        boolean expectedManualReview = mockConfig.requiresManualReview() || "REVIEW_REQUIRED".equals(mockConfig.decision());
-        boolean expectedVerification = mockConfig.additionalVerificationRequired() || "VERIFICATION_REQUIRED".equals(mockConfig.decision());
+        boolean expectedManualReview = mockConfig.requiresManualReview() || mockConfig.decision() == FraudDecision.REVIEW_REQUIRED;
+        boolean expectedVerification = mockConfig.additionalVerificationRequired() || mockConfig.decision() == FraudDecision.VERIFICATION_REQUIRED;
 
         TransferResponse expectedResponse = TransferResponse.builder()
                 .status(expectedStatus)
