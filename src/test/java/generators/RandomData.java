@@ -19,7 +19,8 @@ public class RandomData {
     }
 
     public static double getAmount() {
-        return RandomUtils.nextDouble(0.1, 5000.0);
+        double rawAmount = RandomUtils.nextDouble(0.1, 5000.0);
+        return Math.round(rawAmount * 100.0) / 100.0;
     }
 
     public static double getAmountOverLimit() {
